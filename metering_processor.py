@@ -3,7 +3,7 @@
 S3 to Clazar Usage Metering Script
 
 This script pulls usage metering data from S3 and uploads aggregated data to Clazar.
-It processes data hourly and ensures only one metering record per hour per buyer-dimension combo.
+It processes data monthly and ensures only one metering record per month per buyer-dimension combo.
 """
 
 import json
@@ -14,6 +14,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+import calendar
 
 import boto3
 import requests
@@ -29,14 +30,14 @@ class MeteringProcessor:
         
         Args:
             bucket_name: S3 bucket name containing metering data
-            state_file_path: Path to the state file that tracks last processed hour
+            state_file_path: Path to the state file in S3 that tracks last processed months
             clazar_api_url: Clazar API endpoint URL
             dry_run: If True, skip actual API calls and only log payloads
             access_token: Clazar access token for authentication
             cloud: Cloud name (e.g., 'aws', 'azure', 'gcp')
         """
         self.bucket_name = bucket_name
-        self.state_file_path = Path(state_file_path)
+        self.state_file_path = state_file_path
         self.clazar_api_url = clazar_api_url
         self.dry_run = dry_run
         self.access_token = access_token
@@ -52,40 +53,46 @@ class MeteringProcessor:
 
     def load_state(self) -> Dict:
         """
-        Load the processing state from the state file.
+        Load the processing state from the S3 state file.
         
         Returns:
             Dictionary containing the state information
         """
-        if not self.state_file_path.exists():
-            self.logger.info("State file not found, initializing with default state")
-            return {}
-        
         try:
-            with open(self.state_file_path, 'r') as f:
-                state = json.load(f)
-            self.logger.info(f"Loaded state from {self.state_file_path}")
+            response = self.s3_client.get_object(Bucket=self.bucket_name, Key=self.state_file_path)
+            content = response['Body'].read().decode('utf-8')
+            state = json.loads(content)
+            self.logger.info(f"Loaded state from S3: s3://{self.bucket_name}/{self.state_file_path}")
             return state
+        except ClientError as e:
+            if e.response['Error']['Code'] == 'NoSuchKey':
+                self.logger.info("State file not found in S3, initializing with default state")
+                return {}
+            else:
+                self.logger.error(f"Error loading state file from S3: {e}")
+                return {}
         except (json.JSONDecodeError, IOError) as e:
-            self.logger.error(f"Error loading state file: {e}")
+            self.logger.error(f"Error parsing state file: {e}")
             return {}
 
     def save_state(self, state: Dict):
         """
-        Save the processing state to the state file.
+        Save the processing state to the S3 state file.
         
         Args:
             state: Dictionary containing the state information
         """
         try:
-            # Ensure the directory exists
-            self.state_file_path.parent.mkdir(parents=True, exist_ok=True)
-            
-            with open(self.state_file_path, 'w') as f:
-                json.dump(state, f, indent=2)
-            self.logger.info(f"Saved state to {self.state_file_path}")
-        except IOError as e:
-            self.logger.error(f"Error saving state file: {e}")
+            state_content = json.dumps(state, indent=2)
+            self.s3_client.put_object(
+                Bucket=self.bucket_name,
+                Key=self.state_file_path,
+                Body=state_content,
+                ContentType='application/json'
+            )
+            self.logger.info(f"Saved state to S3: s3://{self.bucket_name}/{self.state_file_path}")
+        except ClientError as e:
+            self.logger.error(f"Error saving state file to S3: {e}")
 
     def get_service_key(self, service_name: str, environment_type: str, plan_id: str) -> str:
         """
@@ -101,10 +108,103 @@ class MeteringProcessor:
         """
         return f"{service_name}:{environment_type}:{plan_id}"
 
-    def get_last_processed_hour(self, service_name: str, environment_type: str, 
-                               plan_id: str) -> Optional[datetime]:
+    def get_month_key(self, year: int, month: int) -> str:
         """
-        Get the last processed hour for a specific service configuration.
+        Generate a unique key for a month.
+        
+        Args:
+            year: Year
+            month: Month
+            
+        Returns:
+            Month key in format YYYY-MM
+        """
+        return f"{year:04d}-{month:02d}"
+
+    def get_contract_month_key(self, contract_id: str, year: int, month: int) -> str:
+        """
+        Generate a unique key for a contract and month combination.
+        
+        Args:
+            contract_id: Contract ID (external payer ID)
+            year: Year
+            month: Month
+            
+        Returns:
+            Contract-month key
+        """
+        month_key = self.get_month_key(year, month)
+        return f"{contract_id}:{month_key}"
+
+    def is_contract_month_processed(self, service_name: str, environment_type: str, 
+                                   plan_id: str, contract_id: str, year: int, month: int) -> bool:
+        """
+        Check if a specific contract for a month has been processed.
+        
+        Args:
+            service_name: Name of the service
+            environment_type: Environment type
+            plan_id: Plan ID
+            contract_id: Contract ID (external payer ID)
+            year: Year
+            month: Month
+            
+        Returns:
+            True if contract-month has been processed, False otherwise
+        """
+        state = self.load_state()
+        service_key = self.get_service_key(service_name, environment_type, plan_id)
+        month_key = self.get_month_key(year, month)
+        contract_month_key = self.get_contract_month_key(contract_id, year, month)
+        
+        if service_key not in state:
+            return False
+        
+        if 'processed_contracts' not in state[service_key]:
+            return False
+        
+        if month_key not in state[service_key]['processed_contracts']:
+            return False
+        
+        return contract_month_key in state[service_key]['processed_contracts'][month_key]
+
+    def mark_contract_month_processed(self, service_name: str, environment_type: str, 
+                                     plan_id: str, contract_id: str, year: int, month: int):
+        """
+        Mark a specific contract for a month as processed.
+        
+        Args:
+            service_name: Name of the service
+            environment_type: Environment type
+            plan_id: Plan ID
+            contract_id: Contract ID (external payer ID)
+            year: Year
+            month: Month
+        """
+        state = self.load_state()
+        service_key = self.get_service_key(service_name, environment_type, plan_id)
+        month_key = self.get_month_key(year, month)
+        contract_month_key = self.get_contract_month_key(contract_id, year, month)
+        
+        if service_key not in state:
+            state[service_key] = {}
+        
+        if 'processed_contracts' not in state[service_key]:
+            state[service_key]['processed_contracts'] = {}
+        
+        if month_key not in state[service_key]['processed_contracts']:
+            state[service_key]['processed_contracts'][month_key] = []
+        
+        if contract_month_key not in state[service_key]['processed_contracts'][month_key]:
+            state[service_key]['processed_contracts'][month_key].append(contract_month_key)
+        
+        state[service_key]['last_updated'] = datetime.utcnow().isoformat() + 'Z'
+        self.save_state(state)
+
+    def get_last_processed_month(self, service_name: str, environment_type: str, 
+                                plan_id: str) -> Optional[Tuple[int, int]]:
+        """
+        Get the last processed month for a specific service configuration.
         
         Args:
             service_name: Name of the service
@@ -112,7 +212,7 @@ class MeteringProcessor:
             plan_id: Plan ID
             
         Returns:
-            Last processed hour as datetime object, or None if never processed
+            Tuple of (year, month) for last processed month, or None if never processed
         """
         state = self.load_state()
         service_key = self.get_service_key(service_name, environment_type, plan_id)
@@ -121,22 +221,28 @@ class MeteringProcessor:
             return None
         
         try:
-            last_processed_str = state[service_key]['last_processed_hour']
-            return datetime.fromisoformat(last_processed_str.replace('Z', '+00:00')).replace(tzinfo=None)
+            last_processed_str = state[service_key].get('last_processed_month')
+            if not last_processed_str:
+                return None
+            
+            # Parse YYYY-MM format
+            year, month = map(int, last_processed_str.split('-'))
+            return (year, month)
         except (KeyError, ValueError) as e:
-            self.logger.error(f"Error parsing last processed hour for {service_key}: {e}")
+            self.logger.error(f"Error parsing last processed month for {service_key}: {e}")
             return None
 
-    def update_last_processed_hour(self, service_name: str, environment_type: str, 
-                                  plan_id: str, processed_hour: datetime):
+    def update_last_processed_month(self, service_name: str, environment_type: str, 
+                                   plan_id: str, year: int, month: int):
         """
-        Update the last processed hour for a specific service configuration.
+        Update the last processed month for a specific service configuration.
         
         Args:
             service_name: Name of the service
             environment_type: Environment type
             plan_id: Plan ID
-            processed_hour: The hour that was just processed
+            year: Year of the month that was processed
+            month: Month that was processed
         """
         state = self.load_state()
         service_key = self.get_service_key(service_name, environment_type, plan_id)
@@ -144,15 +250,16 @@ class MeteringProcessor:
         if service_key not in state:
             state[service_key] = {}
         
-        state[service_key]['last_processed_hour'] = processed_hour.isoformat() + 'Z'
+        month_key = self.get_month_key(year, month)
+        state[service_key]['last_processed_month'] = month_key
         state[service_key]['last_updated'] = datetime.utcnow().isoformat() + 'Z'
         
         self.save_state(state)
 
-    def get_next_hour_to_process(self, service_name: str, environment_type: str, 
-                                plan_id: str) -> Optional[datetime]:
+    def get_next_month_to_process(self, service_name: str, environment_type: str, 
+                                 plan_id: str) -> Optional[Tuple[int, int]]:
         """
-        Get the next hour that needs to be processed.
+        Get the next month that needs to be processed.
         
         Args:
             service_name: Name of the service
@@ -160,69 +267,77 @@ class MeteringProcessor:
             plan_id: Plan ID
             
         Returns:
-            Next hour to process, or None if caught up
+            Tuple of (year, month) for next month to process, or None if caught up
         """
-        last_processed = self.get_last_processed_hour(service_name, environment_type, plan_id)
-        current_hour = datetime.utcnow().replace(minute=0, second=0, microsecond=0)
+        last_processed = self.get_last_processed_month(service_name, environment_type, plan_id)
+        current_date = datetime.utcnow()
+        current_month = (current_date.year, current_date.month)
         
         if last_processed is None:
-            # If never processed, start from 24 hours ago to avoid processing incomplete current hour
-            start_hour = current_hour - timedelta(hours=24)
-            self.logger.info(f"No previous processing found, starting from {start_hour}")
-            return start_hour
+            # If never processed, start from 2 months ago to avoid processing incomplete current month
+            target_date = current_date.replace(day=1) - timedelta(days=32)  # Go back at least one month
+            target_date = target_date.replace(day=1)  # First day of that month
+            start_month = (target_date.year, target_date.month)
+            self.logger.info(f"No previous processing found, starting from {start_month[0]}-{start_month[1]:02d}")
+            return start_month
         
-        next_hour = last_processed + timedelta(hours=1)
+        # Calculate next month
+        year, month = last_processed
+        if month == 12:
+            next_year, next_month = year + 1, 1
+        else:
+            next_year, next_month = year, month + 1
         
-        # Don't process the current hour as it might be incomplete
-        if next_hour >= current_hour:
-            self.logger.info("Caught up with current hour, no processing needed")
+        # Don't process the current month as it might be incomplete
+        if (next_year, next_month) >= current_month:
+            self.logger.info("Caught up with current month, no processing needed")
             return None
         
-        return next_hour
+        return (next_year, next_month)
 
-    def get_hourly_s3_prefix(self, service_name: str, environment_type: str, 
-                           plan_id: str, target_hour: datetime) -> str:
+    def get_monthly_s3_prefix(self, service_name: str, environment_type: str, 
+                             plan_id: str, year: int, month: int) -> str:
         """
-        Generate S3 prefix for a specific hour.
+        Generate S3 prefix for a specific month.
         
         Args:
             service_name: Name of the service
             environment_type: Environment type (e.g., PROD, DEV)
             plan_id: Plan ID
-            target_hour: Target hour as datetime object
+            year: Year
+            month: Month
             
         Returns:
-            S3 prefix string
+            S3 prefix string for the entire month
         """
         return (f"omnistrate-metering/{service_name}/{environment_type}/"
-                f"{plan_id}/{target_hour.year:04d}/{target_hour.month:02d}/"
-                f"{target_hour.day:02d}/{target_hour.hour:02d}/")
+                f"{plan_id}/{year:04d}/{month:02d}/")
 
-    def list_subscription_files(self, prefix: str) -> List[str]:
+    def list_monthly_subscription_files(self, prefix: str) -> List[str]:
         """
-        List all subscription JSON files in the given S3 prefix.
+        List all subscription JSON files in the given S3 prefix (for entire month).
         
         Args:
-            prefix: S3 prefix to search
+            prefix: S3 prefix to search (should cover entire month)
             
         Returns:
             List of S3 object keys
         """
         try:
-            response = self.s3_client.list_objects_v2(
+            paginator = self.s3_client.get_paginator('list_objects_v2')
+            page_iterator = paginator.paginate(
                 Bucket=self.bucket_name,
                 Prefix=prefix
             )
             
-            if 'Contents' not in response:
-                self.logger.warning(f"No objects found with prefix: {prefix}")
-                return []
-            
-            # Filter for JSON files
-            json_files = [
-                obj['Key'] for obj in response['Contents'] 
-                if obj['Key'].endswith('.json')
-            ]
+            json_files = []
+            for page in page_iterator:
+                if 'Contents' in page:
+                    # Filter for JSON files
+                    json_files.extend([
+                        obj['Key'] for obj in page['Contents'] 
+                        if obj['Key'].endswith('.json')
+                    ])
             
             self.logger.info(f"Found {len(json_files)} subscription files in {prefix}")
             return json_files
@@ -258,7 +373,7 @@ class MeteringProcessor:
 
     def aggregate_usage_data(self, usage_records: List[Dict]) -> Dict[Tuple[str, str], float]:
         """
-        Aggregate usage data by externalPayerId and dimension.
+        Aggregate usage data by externalPayerId (contract_id) and dimension for monthly data.
         
         Args:
             usage_records: List of usage records
@@ -283,15 +398,48 @@ class MeteringProcessor:
         self.logger.info(f"Aggregated {len(usage_records)} records into {len(aggregated_data)} entries")
         return dict(aggregated_data)
 
-    def send_to_clazar(self, aggregated_data: Dict[Tuple[str, str], float], 
-                      start_time: datetime, end_time: datetime) -> bool:
+    def filter_processed_contracts(self, aggregated_data: Dict[Tuple[str, str], float],
+                                  service_name: str, environment_type: str, plan_id: str,
+                                  year: int, month: int) -> Dict[Tuple[str, str], float]:
         """
-        Send aggregated usage data to Clazar.
+        Filter out contracts that have already been processed for this month.
+        
+        Args:
+            aggregated_data: Aggregated usage data
+            service_name: Name of the service
+            environment_type: Environment type
+            plan_id: Plan ID
+            year: Year
+            month: Month
+            
+        Returns:
+            Filtered aggregated data with only unprocessed contracts
+        """
+        filtered_data = {}
+        
+        for (contract_id, dimension), quantity in aggregated_data.items():
+            if not self.is_contract_month_processed(service_name, environment_type, plan_id, 
+                                                   contract_id, year, month):
+                filtered_data[(contract_id, dimension)] = quantity
+            else:
+                self.logger.info(f"Skipping already processed contract {contract_id} for {year}-{month:02d}")
+        
+        self.logger.info(f"Filtered from {len(aggregated_data)} to {len(filtered_data)} unprocessed contract records")
+        return filtered_data
+
+    def send_to_clazar(self, aggregated_data: Dict[Tuple[str, str], float], 
+                      start_time: datetime, end_time: datetime,
+                      service_name: str, environment_type: str, plan_id: str) -> bool:
+        """
+        Send aggregated usage data to Clazar and track processed contracts.
         
         Args:
             aggregated_data: Aggregated usage data
             start_time: Start time for the metering period
             end_time: End time for the metering period
+            service_name: Name of the service
+            environment_type: Environment type
+            plan_id: Plan ID
             
         Returns:
             True if successful, False otherwise
@@ -302,6 +450,8 @@ class MeteringProcessor:
         
         # Prepare the payload
         metering_records = []
+        contract_ids = set()
+        
         for (external_payer_id, dimension), quantity in aggregated_data.items():
             record = {
                 "cloud": self.cloud,
@@ -312,6 +462,7 @@ class MeteringProcessor:
                 "quantity": str(quantity)
             }
             metering_records.append(record)
+            contract_ids.add(external_payer_id)
         
         payload = {"request": metering_records}
         
@@ -326,7 +477,7 @@ class MeteringProcessor:
             return False
         
         try:
-            self.logger.info(f"Sending {len(metering_records)} metering records to Clazar")
+            self.logger.info(f"Sending {len(metering_records)} metering records to Clazar for {len(contract_ids)} contracts")
             
             if self.dry_run:
                 self.logger.info("DRY RUN MODE: Would send the following payload to Clazar:")
@@ -334,6 +485,12 @@ class MeteringProcessor:
                 self.logger.info(f"Headers: {headers}")
                 self.logger.info(f"Payload: {json.dumps(payload, indent=2)}")
                 self.logger.info("DRY RUN MODE: Skipping actual API call")
+                
+                # In dry run, mark all contracts as processed
+                year, month = start_time.year, start_time.month
+                for contract_id in contract_ids:
+                    self.mark_contract_month_processed(service_name, environment_type, plan_id, 
+                                                     contract_id, year, month)
                 return True
             
             response = requests.post(self.clazar_api_url, json=payload, headers=headers)
@@ -343,49 +500,66 @@ class MeteringProcessor:
                 self.logger.info(f"Response: {response.text}")
                 return False
 
+            # Track successful submissions per contract
+            successful_contracts = set()
+            
             for result in response.json().get("results", []):
                 if "errors" in result and result["errors"]:
                     if "already exists" in result["message"]: # Duplicate call
-                        self.logger.info(f"Duplicate call for {result.get('externalPayerId', 'unknown')}, skipping")
+                        self.logger.info(f"Duplicate call for {result.get('contract_id', 'unknown')}, marking as processed")
+                        successful_contracts.add(result.get('contract_id'))
                         continue
                     self.logger.error(f"Clazar API error: {result['code']} - {result.get('message', '')}")
                     return False
                 elif "status" in result and result["status"] != "success":
                     self.logger.warning(f"Sent data to Clazar with warnings: status={result['status']}. Please check if the dimensions are registered in Clazar.")
                     self.logger.info(f"Response: {response.json()}")
+                    # Still mark as successful if we got a response
+                    if "contract_id" in result:
+                        successful_contracts.add(result["contract_id"])
                 else:
                     self.logger.info("Successfully sent data to Clazar")
                     self.logger.info(f"Response: {response.json()}")
-            return True
+                    if "contract_id" in result:
+                        successful_contracts.add(result["contract_id"])
+            
+            # Mark successfully processed contracts
+            year, month = start_time.year, start_time.month
+            for contract_id in successful_contracts:
+                self.mark_contract_month_processed(service_name, environment_type, plan_id, 
+                                                 contract_id, year, month)
+            
+            return len(successful_contracts) > 0
                 
         except requests.RequestException as e:
             self.logger.error(f"Error sending data to Clazar: {e}")
             return False
 
-    def process_hour(self, service_name: str, environment_type: str, 
-                    plan_id: str, target_hour: datetime) -> bool:
+    def process_month(self, service_name: str, environment_type: str, 
+                     plan_id: str, year: int, month: int) -> bool:
         """
-        Process usage data for a specific hour.
+        Process usage data for a specific month.
         
         Args:
             service_name: Name of the service
             environment_type: Environment type
             plan_id: Plan ID
-            target_hour: Target hour to process
+            year: Year to process
+            month: Month to process
             
         Returns:
             True if successful, False otherwise
         """
-        self.logger.info(f"Processing hour: {target_hour} for {service_name}/{environment_type}/{plan_id}")
+        self.logger.info(f"Processing month: {year}-{month:02d} for {service_name}/{environment_type}/{plan_id}")
         
-        # Get S3 prefix for the hour
-        prefix = self.get_hourly_s3_prefix(service_name, environment_type, plan_id, target_hour)
+        # Get S3 prefix for the month
+        prefix = self.get_monthly_s3_prefix(service_name, environment_type, plan_id, year, month)
         
-        # List all subscription files
-        subscription_files = self.list_subscription_files(prefix)
+        # List all subscription files for the month
+        subscription_files = self.list_monthly_subscription_files(prefix)
         
         if not subscription_files:
-            self.logger.info(f"No subscription files found for {target_hour}")
+            self.logger.info(f"No subscription files found for {year}-{month:02d}")
             return True
         
         # Read and aggregate all usage data
@@ -395,29 +569,40 @@ class MeteringProcessor:
             all_usage_records.extend(usage_records)
         
         if not all_usage_records:
-            self.logger.info(f"No usage records found for {target_hour}")
+            self.logger.info(f"No usage records found for {year}-{month:02d}")
             return True
         
         # Aggregate the data
         aggregated_data = self.aggregate_usage_data(all_usage_records)
         
-        # Define the time window (hour boundary)
-        start_time = target_hour.replace(minute=0, second=0, microsecond=0)
-        end_time = start_time + timedelta(hours=1)
+        # Filter out already processed contracts
+        filtered_data = self.filter_processed_contracts(aggregated_data, service_name, 
+                                                       environment_type, plan_id, year, month)
+        
+        if not filtered_data:
+            self.logger.info(f"All contracts for {year}-{month:02d} have already been processed")
+            return True
+        
+        # Define the time window (month boundary)
+        start_time = datetime(year, month, 1)
+        # Last day of the month
+        last_day = calendar.monthrange(year, month)[1]
+        end_time = datetime(year, month, last_day, 23, 59, 59)
         
         # Send to Clazar
-        return self.send_to_clazar(aggregated_data, start_time, end_time)
+        return self.send_to_clazar(filtered_data, start_time, end_time, 
+                                 service_name, environment_type, plan_id)
 
-    def process_pending_hours(self, service_name: str, environment_type: str, 
-                             plan_id: str, max_hours: int = 24) -> bool:
+    def process_pending_months(self, service_name: str, environment_type: str, 
+                              plan_id: str, max_months: int = 12) -> bool:
         """
-        Process all pending hours for a specific service configuration.
+        Process all pending months for a specific service configuration.
         
         Args:
             service_name: Name of the service
             environment_type: Environment type
             plan_id: Plan ID
-            max_hours: Maximum number of hours to process in one run
+            max_months: Maximum number of months to process in one run
             
         Returns:
             True if all processing was successful, False otherwise
@@ -427,32 +612,33 @@ class MeteringProcessor:
         processed_count = 0
         all_successful = True
         
-        while processed_count < max_hours:
-            next_hour = self.get_next_hour_to_process(service_name, environment_type, plan_id)
+        while processed_count < max_months:
+            next_month = self.get_next_month_to_process(service_name, environment_type, plan_id)
             
-            if next_hour is None:
-                self.logger.info("No more hours to process, caught up!")
+            if next_month is None:
+                self.logger.info("No more months to process, caught up!")
                 break
             
-            self.logger.info(f"Processing hour {processed_count + 1}/{max_hours}: {next_hour}")
+            year, month = next_month
+            self.logger.info(f"Processing month {processed_count + 1}/{max_months}: {year}-{month:02d}")
             
-            success = self.process_hour(service_name, environment_type, plan_id, next_hour)
+            success = self.process_month(service_name, environment_type, plan_id, year, month)
             
             if success:
                 # Update state only if processing was successful
-                self.update_last_processed_hour(service_name, environment_type, plan_id, next_hour)
+                self.update_last_processed_month(service_name, environment_type, plan_id, year, month)
                 processed_count += 1
             else:
-                self.logger.error(f"Failed to process hour {next_hour}, stopping")
+                self.logger.error(f"Failed to process month {year}-{month:02d}, stopping")
                 all_successful = False
                 break
         
-        self.logger.info(f"Processed {processed_count} hours. Success: {all_successful}")
+        self.logger.info(f"Processed {processed_count} months. Success: {all_successful}")
         return all_successful
 
     def process_current_hour(self, service_name: str, environment_type: str, plan_id: str) -> bool:
         """
-        Process usage data for the current hour (deprecated - use process_pending_hours instead).
+        Process usage data for the current hour (deprecated - use process_pending_months instead).
         
         Args:
             service_name: Name of the service
@@ -462,13 +648,14 @@ class MeteringProcessor:
         Returns:
             True if successful, False otherwise
         """
-        self.logger.warning("process_current_hour is deprecated, use process_pending_hours instead")
-        current_hour = datetime.utcnow().replace(minute=0, second=0, microsecond=0)
-        return self.process_hour(service_name, environment_type, plan_id, current_hour)
+        self.logger.warning("process_current_hour is deprecated, use process_pending_months instead")
+        current_date = datetime.utcnow()
+        return self.process_month(service_name, environment_type, plan_id, 
+                                current_date.year, current_date.month)
 
     def process_previous_hour(self, service_name: str, environment_type: str, plan_id: str) -> bool:
         """
-        Process usage data for the previous hour (deprecated - use process_pending_hours instead).
+        Process usage data for the previous hour (deprecated - use process_pending_months instead).
         
         Args:
             service_name: Name of the service
@@ -478,9 +665,10 @@ class MeteringProcessor:
         Returns:
             True if successful, False otherwise
         """
-        self.logger.warning("process_previous_hour is deprecated, use process_pending_hours instead")
-        previous_hour = datetime.utcnow().replace(minute=0, second=0, microsecond=0) - timedelta(hours=1)
-        return self.process_hour(service_name, environment_type, plan_id, previous_hour)
+        self.logger.warning("process_previous_hour is deprecated, use process_pending_months instead")
+        previous_date = datetime.utcnow() - timedelta(days=30)  # Go back a month
+        return self.process_month(service_name, environment_type, plan_id, 
+                                previous_date.year, previous_date.month)
 
 
 def main():
@@ -495,7 +683,7 @@ def main():
     CLAZAR_CLIENT_SECRET = os.getenv('CLAZAR_CLIENT_SECRET', '')
     CLAZAR_API_URL = os.getenv('CLAZAR_API_URL', 'https://api.clazar.io/metering/')
     STATE_FILE_PATH = os.getenv('STATE_FILE_PATH', 'metering_state.json')
-    MAX_HOURS_PER_RUN = int(os.getenv('MAX_HOURS_PER_RUN', '24'))
+    MAX_MONTHS_PER_RUN = int(os.getenv('MAX_MONTHS_PER_RUN', '12'))
     DRY_RUN = os.getenv('DRY_RUN', 'false').lower() in ('true', '1', 'yes')
     CLAZAR_CLOUD = os.getenv('CLAZAR_CLOUD', 'aws')
     
@@ -531,9 +719,9 @@ def main():
         # Initialize the processor
         processor = MeteringProcessor(BUCKET_NAME, STATE_FILE_PATH, CLAZAR_API_URL, DRY_RUN, access_token, CLAZAR_CLOUD)
         
-        # Process all pending hours
-        success = processor.process_pending_hours(
-            SERVICE_NAME, ENVIRONMENT_TYPE, PLAN_ID, MAX_HOURS_PER_RUN
+        # Process all pending months
+        success = processor.process_pending_months(
+            SERVICE_NAME, ENVIRONMENT_TYPE, PLAN_ID, MAX_MONTHS_PER_RUN
         )
         
         if success:
