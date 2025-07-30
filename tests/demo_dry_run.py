@@ -28,24 +28,26 @@ def demo_dry_run():
         bucket_name="demo-bucket",
         state_file_path=state_file,
         clazar_api_url="https://api.clazar.io/metering/",
-        dry_run=True
+        dry_run=True,
+        # access_token="demo-token"
+        access_token="eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IlNPTWZpcTlPaDc5RGtKeGdMRjNLNiJ9.eyJpc3MiOiJodHRwczovL2NsYXphci51cy5hdXRoMC5jb20vIiwic3ViIjoiME5IOXpiTEFGenY2TDg4VEF6OTMzcWM5RzBEc282SHRAY2xpZW50cyIsImF1ZCI6Imh0dHBzOi8vbTJtLmNsYXphci5pbyIsImlhdCI6MTc1MzgzMzEzMiwiZXhwIjoxNzUzODU0NzMyLCJndHkiOiJjbGllbnQtY3JlZGVudGlhbHMiLCJhenAiOiIwTkg5emJMQUZ6djZMODhUQXo5MzNxYzlHMERzbzZIdCJ9.lSRVZ5B9PqVpTn0sk3Gt9icv5wdSt8eYcnLP39r6SNkIPZvmW_e4FzOXnSvQvclKqp6LonnfC-bXdKCL5jYuH7eb-IJAsYqsX1q2fiSMwAq1noXaBF2g3KplSKYjRuHtx0jcQQRESpIRTn7OlOij7A5xU0MulZwVd7TVK5CMKr3cS1kzApF9WXVLlPzfILO0BoZvsKIYbn3FXGOAePM5L2cRffCeL8ef-8qLZj1sl6a2dpXx2Zma83v-ZDFFt9ipQ-x6fzsftP5Z3JcPDOTGelHTCiXhXfWcRfwWmffqfDilpzlrdNz7dzt-24fly9xp5aiInZGS3WVTOrZumycFlQ"
     )
     
-    print("=== Dry Run Demo ===")
-    print("This demo shows how the dry run mode works with mock data.")
+    print("=== Monthly Processing Dry Run Demo ===")
+    print("This demo shows how the dry run mode works with mock monthly data.")
     print()
     
     # Mock S3 operations to return sample data
     sample_usage_data = [
-        {"externalPayerId": "customer-123", "dimension": "cpu_core_hours", "value": 10},
-        {"externalPayerId": "customer-123", "dimension": "cpu_core_hours", "value": 5},
-        {"externalPayerId": "customer-456", "dimension": "memory_byte_hours", "value": 100},
-        {"externalPayerId": "customer-123", "dimension": "memory_byte_hours", "value": 50},
-        {"externalPayerId": "customer-123", "dimension": "storage_allocated_byte_hours", "value": 200},
-        {"externalPayerId": "customer-123", "dimension": "storage_allocated_byte_hours", "value": 100}
+        {"externalPayerId": "customer-123", "dimension": "cpu_core_hours", "value": 1000},
+        {"externalPayerId": "customer-123", "dimension": "cpu_core_hours", "value": 500},
+        {"externalPayerId": "customer-456", "dimension": "memory_byte_hours", "value": 10000},
+        {"externalPayerId": "customer-123", "dimension": "memory_byte_hours", "value": 5000},
+        {"externalPayerId": "customer-123", "dimension": "storage_allocated_byte_hours", "value": 20000},
+        {"externalPayerId": "customer-123", "dimension": "storage_allocated_byte_hours", "value": 10000}
     ]
     
-    with patch.object(processor, 'list_subscription_files') as mock_list_files, \
+    with patch.object(processor, 'list_monthly_subscription_files') as mock_list_files, \
          patch.object(processor, 'read_s3_json_file') as mock_read_file:
         
         # Mock S3 file listing
@@ -57,21 +59,23 @@ def demo_dry_run():
             sample_usage_data[2:]   # Second file
         ]
         
-        # Process one hour
-        target_hour = datetime(2025, 1, 15, 14, 0, 0)
-        print(f"Processing hour: {target_hour}")
+        # Process one month
+        year, month = 2025, 1
+        print(f"Processing month: {year}-{month:02d}")
         print(f"Sample input data: {json.dumps(sample_usage_data, indent=2)}")
         print()
         
-        success = processor.process_hour("DemoService", "PROD", "demo-plan", target_hour)
+        success = processor.process_month("DemoService", "PROD", "demo-plan", year, month)
         
         print()
         print(f"Processing successful: {success}")
         print()
         print("Notice how in dry run mode:")
         print("- All data processing happens normally")
+        print("- Usage data is aggregated by contract and dimension")
         print("- The payload is logged with full details")
         print("- No actual HTTP request is made")
+        print("- Contract processing state is still tracked")
         print("- The function still returns success")
 
 

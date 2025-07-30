@@ -115,6 +115,31 @@ If you are using different dimensions, update the script accordingly to aggregat
 
 Note the `quantity` field in the payload should always be a string of positive integers, as Clazar expects this format. So ensure your dimensions and aggregation logic align with this requirement.
 
+## Job Behavior: Error Contracts and Month Processing
+
+### How Error Contracts Are Handled
+
+- When a contract fails to process for a given month (for example, due to a Clazar API error), the contract and its error details are recorded in the state file under `error_contracts` for that service/month/contract.
+- On subsequent runs, the job checks both `success_contracts` and `error_contracts` for each contract-month. If a contract is present in either, it is skipped and **not retried**.
+- This means that error contracts from previous months are **not automatically retried**. Usage for those contracts and months will not be sent to Clazar unless you take manual action.
+
+### How to Re-run Error Contracts
+
+To re-run error contracts for a previous month:
+1. Open the state file (e.g., `metering_state.json` in S3).
+2. Locate the relevant `error_contracts` entry for the service/month/contract you want to retry.
+3. Remove the contract entry from the `error_contracts` list for that month.
+4. Save the updated state file.
+5. Re-run the metering job. The job will now attempt to process the contract again for that month.
+
+### Which Months Are Processed
+
+- On each run, the job determines the "next month to process":
+  - If there is no previous processing, it starts from **two months ago** (relative to the current date), to avoid processing the current (possibly incomplete) month.
+  - If there is a last processed month, it starts from the **month after the last processed month**.
+- The job processes months sequentially, up to a maximum number of months per run (default: 12).
+- The job **never processes the current or future months**—it only processes months that are fully in the past.
+
 ## Running the Script
 
 ### Manual Execution
@@ -124,10 +149,41 @@ Note the `quantity` field in the payload should always be a string of positive i
 python3 metering_processor.py
 ```
 
-### Check Logs
+## Tracking State
+
+The state file stored in S3 tracks:
+- Last processed month and last updated timestamp per service configuration
+- List of successfully processed contracts per month per service configuration
+- List of error contracts per month per service configuration
+
+Example state file structure:
+```json
+{
+  "Postgres:PROD:pt-HJSv20iWX0": {
+    "last_processed_month": "2025-06",
+    "last_updated": "2025-07-25T20:15:37Z",
+    "success_contracts": {
+      "2025-06": [
+        "ae641bd1-edf8-4038-bfed-d2ff556c729e",
+        "bf752ce2-fee9-5149-cgfe-e3gg667d83af"
+      ]
+    },
+    "error_contracts": {
+      "2025-06": [
+        {
+          "contract_id": "ce751fd3-ghi9-6159-dhgf-f4hh778e94bg",
+          "errors": ["Some error"],
+          "code": "ERROR_001",
+          "message": "Error occurred"
+        }
+      ]
+    }
+  }
+}
+```
+
+### Checking Logs
 The script provides detailed logging. Monitor the output for:
-- Successfully processed months
-- Contract-level processing status
 - Any errors or warnings
 - State updates
 
@@ -143,117 +199,3 @@ Example output:
 2025-07-25 20:15:37,526 - INFO - Response: {'results': [{'id': '4a4fefdc-07a9-4b84-a1ee-60c6bb690b12', 'cloud': 'aws', 'contract_id': 'ae641bd1-edf8-4038-bfed-d2ff556c729e', 'dimension': 'cpu_core_hours', 'quantity': '720', 'status': 'success', 'start_time': '2025-06-01T00:00:00Z', 'end_time': '2025-06-30T23:59:59Z', 'custom_properties': {}}]}
 2025-07-25 20:15:33,869 - INFO - Saved state to S3: s3://omnistrate-usage-metering-export-demo/metering_state.json
 ```
-
-## State File Structure
-
-The state file stored in S3 tracks:
-- Last processed month per service configuration
-- List of processed contracts per month
-- Last update timestamps
-
-Example state file structure:
-```json
-{
-  "Postgres:PROD:pt-HJSv20iWX0": {
-    "last_processed_month": "2025-06",
-    "last_updated": "2025-07-25T20:15:37Z",
-    "processed_contracts": {
-      "2025-06": [
-        "ae641bd1-edf8-4038-bfed-d2ff556c729e:2025-06",
-        "bf752ce2-fee9-5149-cgfe-e3gg667d83af:2025-06"
-      ]
-    }
-  }
-}
-```
-
-## Deployment Options
-
-### Scheduled Execution
-Run the script on a monthly schedule using:
-
-**Cron (Linux/macOS):**
-```bash
-# Run on the 1st day of each month at 2 AM
-0 2 1 * * /path/to/python3 /path/to/metering_processor.py
-```
-
-**Docker:**
-```dockerfile
-FROM python:3.9-slim
-
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install -r requirements.txt
-
-COPY metering_processor.py .
-CMD ["python", "metering_processor.py"]
-```
-
-**AWS Lambda (serverless):**
-The script works well in serverless environments since state is stored in S3. Configure the Lambda function with:
-- Timeout: 15 minutes (for processing large datasets)
-- Memory: 512 MB or higher
-- Environment variables as listed above
-- CloudWatch Events rule to trigger monthly
-
-### Monitoring and Alerting
-
-Monitor the following metrics:
-- Script execution success/failure
-- Number of contracts processed per month
-- API response times from Clazar
-- S3 read/write operations
-
-Set up alerts for:
-- Script failures
-- Unusual processing times
-- Clazar API errors
-- Missing usage data
-
-## Troubleshooting
-
-### Common Issues
-
-**1. No usage data found**
-- Verify S3 bucket path and structure matches expected format
-- Check if data exists for the target month
-- Ensure AWS credentials have proper S3 permissions
-
-**2. Clazar API errors**
-- Verify access token is valid and not expired
-- Check if dimensions are properly registered in Clazar
-- Review API rate limits
-
-**3. State file issues**
-- Ensure S3 bucket has write permissions
-- Check if state file format is valid JSON
-- Verify state file path in environment variables
-
-**4. Duplicate submissions**
-- The script automatically handles duplicates per contract
-- Check state file to see which contracts have been processed
-- Use dry run mode to test without actual submissions
-
-### Reset Processing State
-
-To reprocess a specific month for all contracts:
-```bash
-# Delete or modify the state file in S3 to remove processed contracts for that month
-aws s3 rm s3://your-bucket/metering_state.json
-# Or edit the state file to remove specific month entries
-```
-
-## Migration from Hourly to Monthly Processing
-
-If you're migrating from an hourly version of this script:
-
-1. **Backup existing state file**
-2. **Update environment variables** (change MAX_HOURS_PER_RUN to MAX_MONTHS_PER_RUN)
-3. **Test with dry run mode** first
-4. **Monitor the first few runs** carefully
-
-The new monthly processing will:
-- Start from 2 months ago if no previous processing history exists
-- Automatically aggregate all hourly data into monthly totals
-- Track processed contracts to avoid duplicates during reruns

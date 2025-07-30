@@ -12,7 +12,6 @@ import os
 import sys
 from collections import defaultdict
 from datetime import datetime, timedelta
-from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 import calendar
 
@@ -121,25 +120,10 @@ class MeteringProcessor:
         """
         return f"{year:04d}-{month:02d}"
 
-    def get_contract_month_key(self, contract_id: str, year: int, month: int) -> str:
-        """
-        Generate a unique key for a contract and month combination.
-        
-        Args:
-            contract_id: Contract ID (external payer ID)
-            year: Year
-            month: Month
-            
-        Returns:
-            Contract-month key
-        """
-        month_key = self.get_month_key(year, month)
-        return f"{contract_id}:{month_key}"
-
     def is_contract_month_processed(self, service_name: str, environment_type: str, 
                                    plan_id: str, contract_id: str, year: int, month: int) -> bool:
         """
-        Check if a specific contract for a month has been processed.
+        Check if a specific contract for a month has been processed (either successfully or with errors).
         
         Args:
             service_name: Name of the service
@@ -150,28 +134,34 @@ class MeteringProcessor:
             month: Month
             
         Returns:
-            True if contract-month has been processed, False otherwise
+            True if contract-month has been processed (successfully or with errors), False otherwise
         """
         state = self.load_state()
         service_key = self.get_service_key(service_name, environment_type, plan_id)
         month_key = self.get_month_key(year, month)
-        contract_month_key = self.get_contract_month_key(contract_id, year, month)
         
         if service_key not in state:
             return False
         
-        if 'processed_contracts' not in state[service_key]:
-            return False
+        # Check if in processed contracts (successful)
+        if 'processed_contracts' in state[service_key]:
+            if month_key in state[service_key]['processed_contracts']:
+                if contract_id in state[service_key]['processed_contracts'][month_key]:
+                    return True
         
-        if month_key not in state[service_key]['processed_contracts']:
-            return False
+        # Check if in error contracts (failed but recorded)
+        if 'error_contracts' in state[service_key]:
+            if month_key in state[service_key]['error_contracts']:
+                for error_entry in state[service_key]['error_contracts'][month_key]:
+                    if error_entry.get('contract_id') == contract_id:
+                        return True
         
-        return contract_month_key in state[service_key]['processed_contracts'][month_key]
+        return False
 
     def mark_contract_month_processed(self, service_name: str, environment_type: str, 
                                      plan_id: str, contract_id: str, year: int, month: int):
         """
-        Mark a specific contract for a month as processed.
+        Mark a specific contract for a month as processed (successfully).
         
         Args:
             service_name: Name of the service
@@ -184,7 +174,6 @@ class MeteringProcessor:
         state = self.load_state()
         service_key = self.get_service_key(service_name, environment_type, plan_id)
         month_key = self.get_month_key(year, month)
-        contract_month_key = self.get_contract_month_key(contract_id, year, month)
         
         if service_key not in state:
             state[service_key] = {}
@@ -195,8 +184,68 @@ class MeteringProcessor:
         if month_key not in state[service_key]['processed_contracts']:
             state[service_key]['processed_contracts'][month_key] = []
         
-        if contract_month_key not in state[service_key]['processed_contracts'][month_key]:
-            state[service_key]['processed_contracts'][month_key].append(contract_month_key)
+        if contract_id not in state[service_key]['processed_contracts'][month_key]:
+            state[service_key]['processed_contracts'][month_key].append(contract_id)
+        
+        state[service_key]['last_updated'] = datetime.utcnow().isoformat() + 'Z'
+        self.save_state(state)
+
+    def mark_contract_month_error(self, service_name: str, environment_type: str, 
+                                 plan_id: str, contract_id: str, year: int, month: int,
+                                 errors: List[str], code: str = None, message: str = None):
+        """
+        Mark a specific contract for a month as having errors.
+        
+        Args:
+            service_name: Name of the service
+            environment_type: Environment type
+            plan_id: Plan ID
+            contract_id: Contract ID (external payer ID)
+            year: Year
+            month: Month
+            errors: List of error messages
+            code: Error code
+            message: Error message
+        """
+        state = self.load_state()
+        service_key = self.get_service_key(service_name, environment_type, plan_id)
+        month_key = self.get_month_key(year, month)
+        
+        if service_key not in state:
+            state[service_key] = {}
+        
+        if 'error_contracts' not in state[service_key]:
+            state[service_key]['error_contracts'] = {}
+        
+        if month_key not in state[service_key]['error_contracts']:
+            state[service_key]['error_contracts'][month_key] = []
+        
+        # Check if this contract already has an error entry for this month
+        existing_error = None
+        for error_entry in state[service_key]['error_contracts'][month_key]:
+            if error_entry.get('contract_id') == contract_id:
+                existing_error = error_entry
+                break
+        
+        if existing_error:
+            # Update existing error entry
+            existing_error['errors'].extend(errors)
+            if code:
+                existing_error['code'] = code
+            if message:
+                existing_error['message'] = message
+        else:
+            # Create new error entry
+            error_entry = {
+                "contract_id": contract_id,
+                "errors": errors,
+            }
+            if code:
+                error_entry["code"] = code
+            if message:
+                error_entry["message"] = message
+            
+            state[service_key]['error_contracts'][month_key].append(error_entry)
         
         state[service_key]['last_updated'] = datetime.utcnow().isoformat() + 'Z'
         self.save_state(state)
@@ -500,36 +549,51 @@ class MeteringProcessor:
                 self.logger.info(f"Response: {response.text}")
                 return False
 
-            # Track successful submissions per contract
+            # Track successful submissions and errors per contract
             successful_contracts = set()
+            error_contracts = {}
+            year, month = start_time.year, start_time.month
             
             for result in response.json().get("results", []):
+                contract_id = result.get("contract_id")
+                
                 if "errors" in result and result["errors"]:
-                    if "already exists" in result["message"]: # Duplicate call
-                        self.logger.info(f"Duplicate call for {result.get('contract_id', 'unknown')}, marking as processed")
-                        successful_contracts.add(result.get('contract_id'))
-                        continue
-                    self.logger.error(f"Clazar API error: {result['code']} - {result.get('message', '')}")
-                    return False
+                    # Record the error
+                    error_msg = result.get('message', 'Unknown error')
+                    error_code = result.get('code', 'API_ERROR')
+                    errors = result["errors"] if isinstance(result["errors"], list) else [str(result["errors"])]
+                    
+                    self.logger.error(f"Clazar API error for contract {contract_id}: {error_code} - {error_msg}")
+                    self.logger.error(f"Errors: {errors}")
+                    
+                    if contract_id:
+                        self.mark_contract_month_error(service_name, environment_type, plan_id, 
+                                                     contract_id, year, month, errors, error_code, error_msg)
+                    
+                    # Continue processing other contracts instead of returning False immediately
+                    continue
+                    
                 elif "status" in result and result["status"] != "success":
                     self.logger.warning(f"Sent data to Clazar with warnings: status={result['status']}. Please check if the dimensions are registered in Clazar.")
                     self.logger.info(f"Response: {response.json()}")
                     # Still mark as successful if we got a response
-                    if "contract_id" in result:
-                        successful_contracts.add(result["contract_id"])
+                    if contract_id:
+                        successful_contracts.add(contract_id)
                 else:
                     self.logger.info("Successfully sent data to Clazar")
                     self.logger.info(f"Response: {response.json()}")
-                    if "contract_id" in result:
-                        successful_contracts.add(result["contract_id"])
+                    if contract_id:
+                        successful_contracts.add(contract_id)
             
             # Mark successfully processed contracts
-            year, month = start_time.year, start_time.month
             for contract_id in successful_contracts:
                 self.mark_contract_month_processed(service_name, environment_type, plan_id, 
                                                  contract_id, year, month)
             
-            return len(successful_contracts) > 0
+            # Return True if we had any successful contracts, or if all contracts were processed (even with errors)
+            total_contracts_handled = len(successful_contracts) + len([r for r in response.json().get("results", []) if "errors" in r and r["errors"]])
+            
+            return total_contracts_handled > 0
                 
         except requests.RequestException as e:
             self.logger.error(f"Error sending data to Clazar: {e}")
@@ -635,40 +699,6 @@ class MeteringProcessor:
         
         self.logger.info(f"Processed {processed_count} months. Success: {all_successful}")
         return all_successful
-
-    def process_current_hour(self, service_name: str, environment_type: str, plan_id: str) -> bool:
-        """
-        Process usage data for the current hour (deprecated - use process_pending_months instead).
-        
-        Args:
-            service_name: Name of the service
-            environment_type: Environment type
-            plan_id: Plan ID
-            
-        Returns:
-            True if successful, False otherwise
-        """
-        self.logger.warning("process_current_hour is deprecated, use process_pending_months instead")
-        current_date = datetime.utcnow()
-        return self.process_month(service_name, environment_type, plan_id, 
-                                current_date.year, current_date.month)
-
-    def process_previous_hour(self, service_name: str, environment_type: str, plan_id: str) -> bool:
-        """
-        Process usage data for the previous hour (deprecated - use process_pending_months instead).
-        
-        Args:
-            service_name: Name of the service
-            environment_type: Environment type
-            plan_id: Plan ID
-            
-        Returns:
-            True if successful, False otherwise
-        """
-        self.logger.warning("process_previous_hour is deprecated, use process_pending_months instead")
-        previous_date = datetime.utcnow() - timedelta(days=30)  # Go back a month
-        return self.process_month(service_name, environment_type, plan_id, 
-                                previous_date.year, previous_date.month)
 
 
 def main():
