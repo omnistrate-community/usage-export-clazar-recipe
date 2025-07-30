@@ -144,9 +144,9 @@ class MeteringProcessor:
             return False
         
         # Check if in processed contracts (successful)
-        if 'processed_contracts' in state[service_key]:
-            if month_key in state[service_key]['processed_contracts']:
-                if contract_id in state[service_key]['processed_contracts'][month_key]:
+        if 'success_contracts' in state[service_key]:
+            if month_key in state[service_key]['success_contracts']:
+                if contract_id in state[service_key]['success_contracts'][month_key]:
                     return True
         
         # Check if in error contracts (failed but recorded)
@@ -178,14 +178,14 @@ class MeteringProcessor:
         if service_key not in state:
             state[service_key] = {}
         
-        if 'processed_contracts' not in state[service_key]:
-            state[service_key]['processed_contracts'] = {}
+        if 'success_contracts' not in state[service_key]:
+            state[service_key]['success_contracts'] = {}
         
-        if month_key not in state[service_key]['processed_contracts']:
-            state[service_key]['processed_contracts'][month_key] = []
+        if month_key not in state[service_key]['success_contracts']:
+            state[service_key]['success_contracts'][month_key] = []
         
-        if contract_id not in state[service_key]['processed_contracts'][month_key]:
-            state[service_key]['processed_contracts'][month_key].append(contract_id)
+        if contract_id not in state[service_key]['success_contracts'][month_key]:
+            state[service_key]['success_contracts'][month_key].append(contract_id)
         
         state[service_key]['last_updated'] = datetime.utcnow().isoformat() + 'Z'
         self.save_state(state)
@@ -447,7 +447,7 @@ class MeteringProcessor:
         self.logger.info(f"Aggregated {len(usage_records)} records into {len(aggregated_data)} entries")
         return dict(aggregated_data)
 
-    def filter_processed_contracts(self, aggregated_data: Dict[Tuple[str, str], float],
+    def filter_success_contracts(self, aggregated_data: Dict[Tuple[str, str], float],
                                   service_name: str, environment_type: str, plan_id: str,
                                   year: int, month: int) -> Dict[Tuple[str, str], float]:
         """
@@ -640,7 +640,7 @@ class MeteringProcessor:
         aggregated_data = self.aggregate_usage_data(all_usage_records)
         
         # Filter out already processed contracts
-        filtered_data = self.filter_processed_contracts(aggregated_data, service_name, 
+        filtered_data = self.filter_success_contracts(aggregated_data, service_name, 
                                                        environment_type, plan_id, year, month)
         
         if not filtered_data:
