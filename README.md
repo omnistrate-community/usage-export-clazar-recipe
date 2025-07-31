@@ -88,23 +88,6 @@ export MAX_MONTHS_PER_RUN="12" # Maximum months to process in one run
 export DRY_RUN="false" # Set to true for testing without sending data to Clazar
 ```
 
-## Key Features
-
-### Monthly Processing
-- The script processes usage data on a monthly basis, aggregating all usage for each month
-- More efficient than hourly processing for large datasets
-- Reduces API calls to Clazar
-
-### Contract-Level Duplicate Prevention
-- Tracks processed contracts per month in the state file
-- Prevents duplicate submissions for the same contract in case of job reruns
-- Allows partial month reprocessing if some contracts failed
-
-### S3 State Storage
-- State file is stored in the same S3 bucket as usage data
-- Enables stateless execution environments (containers, serverless functions)
-- Provides better reliability and accessibility across different execution environments
-
 ### Clazar Dimensions
 This script assumes you are charging for the following dimensions and have configured them in Clazar:
 - `memory_byte_hours`
@@ -115,7 +98,15 @@ If you are using different dimensions, update the script accordingly to aggregat
 
 Note the `quantity` field in the payload should always be a string of positive integers, as Clazar expects this format. So ensure your dimensions and aggregation logic align with this requirement.
 
-## Job Behavior: Error Contracts and Month Processing
+## Job Behavior
+
+### Which Months Are Processed
+
+- On each run, the job determines the "next month to process":
+  - If there is no previous processing, it starts from **two months ago** (relative to the current date), to avoid processing the current (possibly incomplete) month.
+  - If there is a last processed month, it starts from the **month after the last processed month**.
+- The job processes months sequentially, up to a maximum number of months per run (default: 12).
+- The job **never processes the current or future months**—it only processes months that are fully in the past.
 
 ### How Error Contracts Are Handled
 
@@ -129,26 +120,8 @@ To re-run error contracts for a previous month:
 1. Open the state file (e.g., `metering_state.json` in S3).
 2. Locate the relevant `error_contracts` entry for the service/month/contract you want to retry.
 3. Remove the contract entry from the `error_contracts` list for that month.
-- When a contract fails to process for a given month (for example, due to a Clazar API error), the contract and its error details are recorded in the state file under `error_contracts` for that service/month/contract.
-- On subsequent runs, the job checks both `success_contracts` and `error_contracts` for each contract-month. If a contract is present in either, it is skipped and **not retried**.
-- This means that error contracts from previous months are **not automatically retried**. Usage for those contracts and months will not be sent to Clazar unless you take manual action.
-
-### How to Re-run Error Contracts
-
-To re-run error contracts for a previous month:
-1. Open the state file (e.g., `metering_state.json` in S3).
-2. Locate the relevant `error_contracts` entry for the service/month/contract you want to retry.
-3. Remove the contract entry from the `error_contracts` list for that month.
 4. Save the updated state file.
 5. Re-run the metering job. The job will now attempt to process the contract again for that month.
-
-### Which Months Are Processed
-
-- On each run, the job determines the "next month to process":
-  - If there is no previous processing, it starts from **two months ago** (relative to the current date), to avoid processing the current (possibly incomplete) month.
-  - If there is a last processed month, it starts from the **month after the last processed month**.
-- The job processes months sequentially, up to a maximum number of months per run (default: 12).
-- The job **never processes the current or future months**—it only processes months that are fully in the past.
 
 ## Running the Script
 
