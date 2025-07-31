@@ -69,25 +69,14 @@ To re-run error contracts for a previous month:
 4. Save the updated state file.
 5. Re-run the metering job. The job will now attempt to process the contract again for that month.
 
-## Running the Script
-
-### Manual Execution
-
-```bash
-# Set required environment variables
-
-# Test run (from project directory)
-python3 metering_processor.py
-```
-
-### Docker Execution
+## Run it as a Job in Omnistrate
+To set up a job in Omnistrate, run the following command in your terminal. Make sure you have the Omnistrate CLI installed and configured before running the command.
 
 ```bash
-# Edit .env with your actual credentials and configuration
-
-# Run the container
-docker-compose up
+omctl build-from-repo --product-name clazarUsageExporter
 ```
+
+To run the job, you can create a resource instance in Omnistrate with the necessary parameters.
 
 ## Tracking State
 
@@ -123,7 +112,7 @@ Example state file structure:
 ```
 
 ### Checking Logs
-The script provides detailed logging. Monitor the output for:
+The script provides detailed logging. Monitor the logs for:
 - Any errors or warnings
 - AWS authentication method being used
 - State updates
@@ -141,26 +130,3 @@ Example output:
 2025-07-25 20:15:37,526 - INFO - Response: {'results': [{'id': '4a4fefdc-07a9-4b84-a1ee-60c6bb690b12', 'cloud': 'aws', 'contract_id': 'ae641bd1-edf8-4038-bfed-d2ff556c729e', 'dimension': 'cpu_core_hours', 'quantity': '720', 'status': 'success', 'start_time': '2025-06-01T00:00:00Z', 'end_time': '2025-06-30T23:59:59Z', 'custom_properties': {}}]}
 2025-07-25 20:15:33,869 - INFO - Saved state to S3: s3://omnistrate-usage-metering-export-demo/metering_state.json
 ```
-
-## Troubleshooting
-
-### AWS Authentication Issues
-
-**Problem**: `NoCredentialsError` or `Unable to locate credentials`
-**Solutions**:
-1. Verify environment variables are set: `echo $AWS_ACCESS_KEY_ID`
-2. Check AWS CLI configuration: `aws configure list`
-3. Test with the authentication script: `python3 test_aws_auth.py`
-4. Verify IAM permissions for S3 operations
-
-**Problem**: `Access Denied` errors when accessing S3
-**Solutions**:
-1. Verify the S3 bucket name is correct
-2. Check IAM permissions include `s3:GetObject`, `s3:ListBucket`, and `s3:PutObject`
-3. Ensure the bucket exists and is in the correct AWS region
-
-**Problem**: `Invalid security token` or `Token expired`
-**Solutions**:
-1. Refresh AWS credentials if using temporary tokens
-2. Check if using IAM roles and the role is still valid
-3. Re-run `aws configure` if using AWS CLI configuration
