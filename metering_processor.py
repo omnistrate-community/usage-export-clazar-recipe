@@ -48,9 +48,8 @@ class MeteringProcessor:
         
         # Configure AWS credentials and create S3 client
         s3_kwargs = {}
-        if aws_access_key_id and aws_secret_access_key:
-            s3_kwargs['aws_access_key_id'] = aws_access_key_id
-            s3_kwargs['aws_secret_access_key'] = aws_secret_access_key
+        s3_kwargs['aws_access_key_id'] = aws_access_key_id
+        s3_kwargs['aws_secret_access_key'] = aws_secret_access_key
         if aws_region:
             s3_kwargs['region_name'] = aws_region
         
@@ -64,11 +63,8 @@ class MeteringProcessor:
         self.logger = logging.getLogger(__name__)
         
         # Log AWS configuration (without exposing sensitive data)
-        if aws_access_key_id:
-            self.logger.info(f"Using provided AWS credentials for region: {aws_region or 'default'}")
-        else:
-            self.logger.info("Using AWS SDK credential chain (environment, credentials file, or IAM role)")
-
+        self.logger.info(f"Using provided AWS credentials for region: {aws_region}")
+        
     def load_state(self) -> Dict:
         """
         Load the processing state from the S3 state file.
@@ -749,15 +745,12 @@ def main():
         print("S3_BUCKET_NAME, SERVICE_NAME, ENVIRONMENT_TYPE, PLAN_ID")
         sys.exit(1)
     
-    # Validate AWS credentials if provided
-    if not AWS_ACCESS_KEY_ID and not AWS_SECRET_ACCESS_KEY:
-        print("Error: AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY must be set")
+    # Validate AWS credentials
+    if not AWS_SECRET_ACCESS_KEY:
+        print("Error: AWS_SECRET_ACCESS_KEY is missing")
         sys.exit(1)
-    if AWS_ACCESS_KEY_ID and not AWS_SECRET_ACCESS_KEY:
-        print("Error: AWS_ACCESS_KEY_ID provided but AWS_SECRET_ACCESS_KEY is missing")
-        sys.exit(1)
-    if AWS_SECRET_ACCESS_KEY and not AWS_ACCESS_KEY_ID:
-        print("Error: AWS_SECRET_ACCESS_KEY provided but AWS_ACCESS_KEY_ID is missing")
+    if not AWS_ACCESS_KEY_ID:
+        print("Error: AWS_ACCESS_KEY_ID is missing")
         sys.exit(1)
     
     try:
