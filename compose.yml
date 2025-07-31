@@ -1,0 +1,145 @@
+version: '3.8'
+
+x-omnistrate-integrations:
+  - omnistrateLogging:
+  - omnistrateMetrics:
+
+x-omnistrate-service-plan:
+  name: 'clazar-usage-export-job'
+  tenancyType: 'OMNISTRATE_MULTI_TENANCY'
+  
+services:
+  metering-processor:
+    build: .
+    env_file: .env
+    deploy:
+      resources:
+        reservations:
+          cpus: "0.1"
+          memory: 256M
+        limits:
+          cpus: "0.5"
+          memory: 1G
+    privileged: true
+    platform: linux/amd64
+    x-omnistrate-compute:
+      replicaCount: 1
+      instanceTypes:
+        - cloudProvider: aws
+          name: t4g.small
+        - cloudProvider: gcp
+          name: e2-small
+    x-omnistrate-job-config:
+      backoffLimit: 0
+      activeDeadlineSeconds: 3600
+    x-omnistrate-api-params:
+      - key: s3BucketName
+        description: The name of the S3 bucket to pull usage data from.
+        name: S3 Bucket Name
+        type: String
+        modifiable: true
+        required: true
+        export: true
+      - key: serviceName
+        description: Service Name
+        name: Service Name
+        type: String
+        modifiable: true
+        required: true
+        export: true
+      - key: environmentType
+        description: Environment Type
+        name: Environment Type
+        type: String
+        modifiable: true
+        required: true
+        export: true
+      - key: planId
+        description: Plan ID
+        name: Plan ID
+        type: String
+        modifiable: true
+        required: true
+        export: true
+      - key: clazarClientId
+        description: Clazar Client ID
+        name: Clazar Client ID
+        type: Secret
+        modifiable: true
+        required: true
+        export: false
+      - key: clazarClientSecret
+        description: Clazar Client Secret
+        name: Clazar Client Secret
+        type: Secret
+        modifiable: true
+        required: true
+        export: false
+      - key: clazarCloud
+        description: Clazar Cloud (aws, azure, gcp)
+        name: Clazar Cloud
+        type: String
+        modifiable: true
+        required: true
+        export: true
+        defaultValue: "aws"
+      - key: awsAccessKeyId
+        description: AWS Access Key ID
+        name: AWS Access Key ID
+        type: String
+        modifiable: true
+        required: true
+        export: false
+      - key: awsSecretAccessKey
+        description: AWS Secret Access Key
+        name: AWS Secret Access Key
+        type: String
+        modifiable: true
+        required: true
+        export: false
+      - key: awsRegion
+        description: AWS Region
+        name: AWS Region
+        type: String
+        modifiable: true
+        required: false
+        export: true
+        defaultValue: "us-east-1"
+      - key: clazarApiUrl
+        description: Clazar API URL
+        name: Clazar API URL
+        type: String
+        modifiable: true
+        required: false
+        export: true
+        defaultValue: "https://api.clazar.io/metering/"
+      - key: stateFilePath
+        description: State File Path in the S3 bucket
+        name: State File Path
+        type: String
+        modifiable: true 
+        required: false
+        export: true
+        defaultValue: "metering_state.json"
+      - key: maxMonthsPerRun
+        description: Maximum Months to Process Per Run
+        name: Max Months Per Run
+        type: Float64
+        modifiable: true
+        required: false
+        export: true
+        defaultValue: "12"
+      - key: dryRun
+        description: Dry Run Mode (true/false)
+        name: Dry Run Mode
+        type: Boolean
+        modifiable: true
+        required: false
+        export: true
+        defaultValue: false
+    x-omnistrate-mode-internal: false
+x-omnistrate-image-registry-attributes:
+  ghcr.io:
+    auth:
+      password: ${{ secrets.GitHubPAT }}
+      username: G-Despacito
