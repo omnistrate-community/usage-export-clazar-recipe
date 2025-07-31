@@ -23,7 +23,8 @@ from botocore.exceptions import ClientError, NoCredentialsError
 class MeteringProcessor:
     def __init__(self, bucket_name: str, state_file_path: str = "metering_state.json", 
                  clazar_api_url: str = "https://api.clazar.io/metering/", dry_run: bool = False,
-                 access_token: str = None, cloud: str = "aws"):
+                 access_token: str = None, cloud: str = "aws", aws_access_key_id: str = None,
+                 aws_secret_access_key: str = None, aws_region: str = None):
         """
         Initialize the metering processor.
         
@@ -34,6 +35,9 @@ class MeteringProcessor:
             dry_run: If True, skip actual API calls and only log payloads
             access_token: Clazar access token for authentication
             cloud: Cloud name (e.g., 'aws', 'azure', 'gcp')
+            aws_access_key_id: AWS access key ID
+            aws_secret_access_key: AWS secret access key
+            aws_region: AWS region
         """
         self.bucket_name = bucket_name
         self.state_file_path = state_file_path
@@ -41,7 +45,16 @@ class MeteringProcessor:
         self.dry_run = dry_run
         self.access_token = access_token
         self.cloud = cloud
-        self.s3_client = boto3.client('s3')
+        
+        # Configure AWS credentials and create S3 client
+        s3_kwargs = {}
+        if aws_access_key_id and aws_secret_access_key:
+            s3_kwargs['aws_access_key_id'] = aws_access_key_id
+            s3_kwargs['aws_secret_access_key'] = aws_secret_access_key
+        if aws_region:
+            s3_kwargs['region_name'] = aws_region
+        
+        self.s3_client = boto3.client('s3', **s3_kwargs)
         
         # Set up logging
         logging.basicConfig(
@@ -49,6 +62,12 @@ class MeteringProcessor:
             format='%(asctime)s - %(levelname)s - %(message)s'
         )
         self.logger = logging.getLogger(__name__)
+        
+        # Log AWS configuration (without exposing sensitive data)
+        if aws_access_key_id:
+            self.logger.info(f"Using provided AWS credentials for region: {aws_region or 'default'}")
+        else:
+            self.logger.info("Using AWS SDK credential chain (environment, credentials file, or IAM role)")
 
     def load_state(self) -> Dict:
         """
@@ -704,23 +723,41 @@ class MeteringProcessor:
 def main():
     """Main function to run the metering processor."""
     
-    # Configuration - these should be set via environment variables or config file
+    # AWS Configuration
+    AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
+    AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
+    AWS_REGION = os.getenv('AWS_REGION')
     BUCKET_NAME = os.getenv('S3_BUCKET_NAME', 'omnistrate-usage-metering-export-demo')
-    SERVICE_NAME = os.getenv('SERVICE_NAME', 'Postgres')
-    ENVIRONMENT_TYPE = os.getenv('ENVIRONMENT_TYPE', 'PROD')
-    PLAN_ID = os.getenv('PLAN_ID', 'pt-HJSv20iWX0')
+
+    # Clazar Configuration
     CLAZAR_CLIENT_ID = os.getenv('CLAZAR_CLIENT_ID', '')
     CLAZAR_CLIENT_SECRET = os.getenv('CLAZAR_CLIENT_SECRET', '')
     CLAZAR_API_URL = os.getenv('CLAZAR_API_URL', 'https://api.clazar.io/metering/')
+    CLAZAR_CLOUD = os.getenv('CLAZAR_CLOUD', 'aws')
+
+    # Metering Processor Configuration
+    SERVICE_NAME = os.getenv('SERVICE_NAME', 'Postgres')
+    ENVIRONMENT_TYPE = os.getenv('ENVIRONMENT_TYPE', 'PROD')
+    PLAN_ID = os.getenv('PLAN_ID', 'pt-HJSv20iWX0')
     STATE_FILE_PATH = os.getenv('STATE_FILE_PATH', 'metering_state.json')
     MAX_MONTHS_PER_RUN = int(os.getenv('MAX_MONTHS_PER_RUN', '12'))
     DRY_RUN = os.getenv('DRY_RUN', 'false').lower() in ('true', '1', 'yes')
-    CLAZAR_CLOUD = os.getenv('CLAZAR_CLOUD', 'aws')
     
     # Validate required environment variables
     if not all([BUCKET_NAME, SERVICE_NAME, ENVIRONMENT_TYPE, PLAN_ID]):
         print("Error: Missing required configuration. Please set environment variables:")
         print("S3_BUCKET_NAME, SERVICE_NAME, ENVIRONMENT_TYPE, PLAN_ID")
+        sys.exit(1)
+    
+    # Validate AWS credentials if provided
+    if not AWS_ACCESS_KEY_ID and not AWS_SECRET_ACCESS_KEY:
+        print("Error: AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY must be set")
+        sys.exit(1)
+    if AWS_ACCESS_KEY_ID and not AWS_SECRET_ACCESS_KEY:
+        print("Error: AWS_ACCESS_KEY_ID provided but AWS_SECRET_ACCESS_KEY is missing")
+        sys.exit(1)
+    if AWS_SECRET_ACCESS_KEY and not AWS_ACCESS_KEY_ID:
+        print("Error: AWS_SECRET_ACCESS_KEY provided but AWS_ACCESS_KEY_ID is missing")
         sys.exit(1)
     
     try:
@@ -747,7 +784,17 @@ def main():
             sys.exit(1)
 
         # Initialize the processor
-        processor = MeteringProcessor(BUCKET_NAME, STATE_FILE_PATH, CLAZAR_API_URL, DRY_RUN, access_token, CLAZAR_CLOUD)
+        processor = MeteringProcessor(
+            bucket_name=BUCKET_NAME, 
+            state_file_path=STATE_FILE_PATH, 
+            clazar_api_url=CLAZAR_API_URL, 
+            dry_run=DRY_RUN, 
+            access_token=access_token, 
+            cloud=CLAZAR_CLOUD,
+            aws_access_key_id=AWS_ACCESS_KEY_ID,
+            aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+            aws_region=AWS_REGION
+        )
         
         # Process all pending months
         success = processor.process_pending_months(
@@ -762,7 +809,8 @@ def main():
             sys.exit(1)
             
     except NoCredentialsError:
-        print("Error: AWS credentials not found. Please configure AWS credentials.")
+        print("Error: AWS credentials not found.")
+        print("Please configure AWS credentials by setting AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables.")
         sys.exit(1)
     except Exception as e:
         print(f"Unexpected error: {e}")

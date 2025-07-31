@@ -49,22 +49,6 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 2. Configure AWS Credentials
-
-Choose one of the following methods:
-
-**Option A: AWS CLI Configuration**
-```bash
-aws configure
-```
-
-**Option B: Environment Variables**
-```bash
-export AWS_ACCESS_KEY_ID="your-access-key"
-export AWS_SECRET_ACCESS_KEY="your-secret-key"
-export AWS_DEFAULT_REGION="us-east-1"
-```
-
 ## Configuration
 
 ### Required Environment Variables
@@ -80,6 +64,11 @@ export PLAN_ID="pt-HJSv20iWX0" # This should match the plan ID in your S3 paths
 export CLAZAR_CLIENT_ID="your-clazar-client-id" # Your Clazar client ID
 export CLAZAR_CLIENT_SECRET="your-clazar-client-secret" # Your Clazar client secret
 export CLAZAR_CLOUD="aws"  # This should be the marketplace cloud (aws, azure, gcp, etc.)
+
+# AWS Configuration
+export AWS_ACCESS_KEY_ID="your-aws-access-key"  # AWS access key
+export AWS_SECRET_ACCESS_KEY="your-aws-secret-key"  # AWS secret key
+export AWS_REGION="us-east-1"  # AWS region
 
 # Optional Configuration (with defaults)
 export CLAZAR_API_URL="https://api.clazar.io/metering/"
@@ -128,8 +117,35 @@ To re-run error contracts for a previous month:
 ### Manual Execution
 
 ```bash
+# Ensure AWS credentials are configured (via environment variables, AWS CLI, or IAM roles)
+# Set required environment variables
+
 # Test run (from project directory)
 python3 metering_processor.py
+```
+
+### AWS Authentication Testing
+
+To verify your AWS credentials are working correctly, you can use the provided test script:
+
+```bash
+# Test AWS authentication
+python3 test_aws_auth.py
+```
+
+This script will:
+- Check if AWS credentials are configured
+- Test S3 connection by listing buckets
+- Verify access to your specified S3 bucket
+
+You can also test manually with:
+
+```bash
+# Using AWS CLI (if configured)
+aws s3 ls s3://your-bucket-name/
+
+# Or using Python boto3
+python3 -c "import boto3; print(boto3.client('s3').list_buckets())"
 ```
 
 ## Tracking State
@@ -168,10 +184,12 @@ Example state file structure:
 ### Checking Logs
 The script provides detailed logging. Monitor the output for:
 - Any errors or warnings
+- AWS authentication method being used
 - State updates
 
 Example output:
 ```
+2025-07-25 20:15:32,604 - INFO - Using provided AWS credentials for region: us-east-1
 2025-07-25 20:15:32,604 - INFO - Processing month 1/12: 2025-06
 2025-07-25 20:15:32,604 - INFO - Processing month: 2025-06 for Postgres/PROD/pt-HJSv20iWX0
 2025-07-25 20:15:32,662 - INFO - Found 744 subscription files in omnistrate-metering/Postgres/PROD/pt-HJSv20iWX0/2025/06/
@@ -182,3 +200,26 @@ Example output:
 2025-07-25 20:15:37,526 - INFO - Response: {'results': [{'id': '4a4fefdc-07a9-4b84-a1ee-60c6bb690b12', 'cloud': 'aws', 'contract_id': 'ae641bd1-edf8-4038-bfed-d2ff556c729e', 'dimension': 'cpu_core_hours', 'quantity': '720', 'status': 'success', 'start_time': '2025-06-01T00:00:00Z', 'end_time': '2025-06-30T23:59:59Z', 'custom_properties': {}}]}
 2025-07-25 20:15:33,869 - INFO - Saved state to S3: s3://omnistrate-usage-metering-export-demo/metering_state.json
 ```
+
+## Troubleshooting
+
+### AWS Authentication Issues
+
+**Problem**: `NoCredentialsError` or `Unable to locate credentials`
+**Solutions**:
+1. Verify environment variables are set: `echo $AWS_ACCESS_KEY_ID`
+2. Check AWS CLI configuration: `aws configure list`
+3. Test with the authentication script: `python3 test_aws_auth.py`
+4. Verify IAM permissions for S3 operations
+
+**Problem**: `Access Denied` errors when accessing S3
+**Solutions**:
+1. Verify the S3 bucket name is correct
+2. Check IAM permissions include `s3:GetObject`, `s3:ListBucket`, and `s3:PutObject`
+3. Ensure the bucket exists and is in the correct AWS region
+
+**Problem**: `Invalid security token` or `Token expired`
+**Solutions**:
+1. Refresh AWS credentials if using temporary tokens
+2. Check if using IAM roles and the role is still valid
+3. Re-run `aws configure` if using AWS CLI configuration
