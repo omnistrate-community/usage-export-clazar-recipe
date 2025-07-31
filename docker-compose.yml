@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  metering-processor:
+    build: .
+    environment:
+      # Required Configuration
+      - S3_BUCKET_NAME=${S3_BUCKET_NAME:-omnistrate-usage-metering-export-demo}
+      - SERVICE_NAME=${SERVICE_NAME:-Postgres}
+      - ENVIRONMENT_TYPE=${ENVIRONMENT_TYPE:-PROD}
+      - PLAN_ID=${PLAN_ID:-pt-HJSv20iWX0}
+      - CLAZAR_CLIENT_ID=${CLAZAR_CLIENT_ID}
+      - CLAZAR_CLIENT_SECRET=${CLAZAR_CLIENT_SECRET}
+      - CLAZAR_CLOUD=${CLAZAR_CLOUD:-aws}
+      
+      # AWS Configuration
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      
+      # Optional Configuration (with defaults)
+      - CLAZAR_API_URL=${CLAZAR_API_URL:-https://api.clazar.io/metering/}
+      - STATE_FILE_PATH=${STATE_FILE_PATH:-metering_state.json}
+      - MAX_MONTHS_PER_RUN=${MAX_MONTHS_PER_RUN:-12}
+      - DRY_RUN=${DRY_RUN:-false}
+    # volumes:
+      # Optional: Mount local directory for development
+      # - .:/app
+      # Optional: Mount AWS credentials if not using environment variables
+      # - ~/.aws:/home/appuser/.aws:ro
+    restart: "no"  # Don't restart automatically for one-time jobs

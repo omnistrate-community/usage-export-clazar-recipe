@@ -4,16 +4,6 @@ This script automatically pulls usage metering data from S3 and uploads aggregat
 
 ## Prerequisites
 
-### System Requirements
-- Python 3.7 or higher
-- AWS CLI configured or AWS credentials available
-- Network access to S3 and Clazar API
-
-### Python Dependencies
-```bash
-pip install boto3 requests
-```
-
 ### AWS Permissions
 Your AWS credentials need the following S3 permissions:
 ```json
@@ -38,44 +28,11 @@ Your AWS credentials need the following S3 permissions:
 
 Note: `s3:PutObject` permission is required for storing the state file in S3.
 
-## Installation
-
-### 1. Install Dependencies
-```bash
-# Activate your virtual environment if using one
-source venv/bin/activate
-
-# Install from requirements.txt
-pip install -r requirements.txt
-```
-
 ## Configuration
 
 ### Required Environment Variables
 
-Set these environment variables before running the script:
-
-```bash
-# Required Configuration
-export S3_BUCKET_NAME="omnistrate-usage-metering-export-demo" # This should match your S3 bucket name
-export SERVICE_NAME="Postgres" # This should match the service name in your S3 paths
-export ENVIRONMENT_TYPE="PROD" # This should match the environment type in your S3 paths
-export PLAN_ID="pt-HJSv20iWX0" # This should match the plan ID in your S3 paths
-export CLAZAR_CLIENT_ID="your-clazar-client-id" # Your Clazar client ID
-export CLAZAR_CLIENT_SECRET="your-clazar-client-secret" # Your Clazar client secret
-export CLAZAR_CLOUD="aws"  # This should be the marketplace cloud (aws, azure, gcp, etc.)
-
-# AWS Configuration
-export AWS_ACCESS_KEY_ID="your-aws-access-key"  # AWS access key
-export AWS_SECRET_ACCESS_KEY="your-aws-secret-key"  # AWS secret key
-export AWS_REGION="us-east-1"  # AWS region
-
-# Optional Configuration (with defaults)
-export CLAZAR_API_URL="https://api.clazar.io/metering/"
-export STATE_FILE_PATH="metering_state.json" # Stored in S3 bucket
-export MAX_MONTHS_PER_RUN="12" # Maximum months to process in one run
-export DRY_RUN="false" # Set to true for testing without sending data to Clazar
-```
+Set the environment variables in your `.env` file or directly in your environment.
 
 ### Clazar Dimensions
 This script assumes you are charging for the following dimensions and have configured them in Clazar:
@@ -117,35 +74,19 @@ To re-run error contracts for a previous month:
 ### Manual Execution
 
 ```bash
-# Ensure AWS credentials are configured (via environment variables, AWS CLI, or IAM roles)
 # Set required environment variables
 
 # Test run (from project directory)
 python3 metering_processor.py
 ```
 
-### AWS Authentication Testing
-
-To verify your AWS credentials are working correctly, you can use the provided test script:
+### Docker Execution
 
 ```bash
-# Test AWS authentication
-python3 test_aws_auth.py
-```
+# Edit .env with your actual credentials and configuration
 
-This script will:
-- Check if AWS credentials are configured
-- Test S3 connection by listing buckets
-- Verify access to your specified S3 bucket
-
-You can also test manually with:
-
-```bash
-# Using AWS CLI (if configured)
-aws s3 ls s3://your-bucket-name/
-
-# Or using Python boto3
-python3 -c "import boto3; print(boto3.client('s3').list_buckets())"
+# Run the container
+docker-compose up
 ```
 
 ## Tracking State
