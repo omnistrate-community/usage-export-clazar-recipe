@@ -11,7 +11,7 @@ import logging
 import os
 import sys
 from collections import defaultdict
-from datetime import datetime, UTC
+from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional, Tuple
 import calendar
 
@@ -202,7 +202,7 @@ class MeteringProcessor:
         if contract_id not in state[service_key]['success_contracts'][month_key]:
             state[service_key]['success_contracts'][month_key].append(contract_id)
         
-        state[service_key]['last_updated'] = datetime.now(UTC).isoformat() + 'Z'
+        state[service_key]['last_updated'] = datetime.now(timezone.utc).isoformat() + 'Z'
         self.save_state(state)
 
     def mark_contract_month_error(self, service_name: str, environment_type: str, 
@@ -262,7 +262,7 @@ class MeteringProcessor:
             
             state[service_key]['error_contracts'][month_key].append(error_entry)
         
-        state[service_key]['last_updated'] = datetime.now(UTC).isoformat() + 'Z'
+        state[service_key]['last_updated'] = datetime.now(timezone.utc).isoformat() + 'Z'
         self.save_state(state)
 
     def get_last_processed_month(self, service_name: str, environment_type: str, 
@@ -316,7 +316,7 @@ class MeteringProcessor:
         
         month_key = self.get_month_key(year, month)
         state[service_key]['last_processed_month'] = month_key
-        state[service_key]['last_updated'] = datetime.now(UTC).isoformat() + 'Z'
+        state[service_key]['last_updated'] = datetime.now(timezone.utc).isoformat() + 'Z'
 
         self.save_state(state)
 
@@ -334,12 +334,12 @@ class MeteringProcessor:
             Tuple of (year, month) for next month to process, or None if caught up
         """
         last_processed = self.get_last_processed_month(service_name, environment_type, plan_id)
-        current_date = datetime.now(UTC)
+        current_date = datetime.now(timezone.utc)
         current_month = (current_date.year, current_date.month)
         
         if last_processed is None:
             # If never processed, start from 2 months ago to avoid processing incomplete current month
-            target_date = current_date.replace(day=1) - datetime.timedelta(days=32)  # Go back at least one month
+            target_date = current_date.replace(day=1) - timedelta(days=32)  # Go back at least one month
             target_date = target_date.replace(day=1)  # First day of that month
             start_month = (target_date.year, target_date.month)
             self.logger.info(f"No previous processing found, starting from {start_month[0]}-{start_month[1]:02d}")

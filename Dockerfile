@@ -1,4 +1,4 @@
-FROM python:3.13-slim
+FROM python:3.9-slim
 
 WORKDIR /app
 
@@ -15,3 +15,5 @@ RUN chmod +x /app/entrypoint.sh
 
 # Set the entrypoint
 ENTRYPOINT ["/app/entrypoint.sh"]
+
+LABEL org.opencontainers.image.source="https://github.com/omnistrate-community/usage-export-clazar-recipe"

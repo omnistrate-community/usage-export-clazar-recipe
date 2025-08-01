@@ -15,28 +15,26 @@ services:
       dockerfile: Dockerfile
     privileged: true
     platform: linux/amd64
-    env_file:
-      - .env
-    # environment:
-    #   S3_BUCKET_NAME: $var.s3BucketName
-    #   SERVICE_NAME: $var.serviceName
-    #   ENVIRONMENT_TYPE: $var.environmentType
-    #   PLAN_ID: $var.planId
-    #   CLAZAR_CLIENT_ID: $var.clazarClientId
-    #   CLAZAR_CLIENT_SECRET: $var.clazarClientSecret
-    #   CLAZAR_CLOUD: $var.clazarCloud
-    #   AWS_ACCESS_KEY_ID: $var.awsAccessKeyId
-    #   AWS_SECRET_ACCESS_KEY: $var.awsSecretAccessKey
-    #   AWS_REGION: $var.awsRegion
-    #   CLAZAR_API_URL: $var.clazarApiUrl
-    #   STATE_FILE_PATH: $var.stateFilePath
-    #   MAX_MONTHS_PER_RUN: $var.maxMonthsPerRun
-    #   DRY_RUN: $var.dryRun
+    environment:
+      S3_BUCKET_NAME: $var.s3BucketName
+      SERVICE_NAME: $var.serviceName
+      ENVIRONMENT_TYPE: $var.environmentType
+      PLAN_ID: $var.planId
+      CLAZAR_CLIENT_ID: $var.clazarClientId
+      CLAZAR_CLIENT_SECRET: $var.clazarClientSecret
+      CLAZAR_CLOUD: $var.clazarCloud
+      AWS_ACCESS_KEY_ID: $var.awsAccessKeyId
+      AWS_SECRET_ACCESS_KEY: $var.awsSecretAccessKey
+      AWS_REGION: $var.awsRegion
+      CLAZAR_API_URL: $var.clazarApiUrl
+      STATE_FILE_PATH: $var.stateFilePath
+      MAX_MONTHS_PER_RUN: $var.maxMonthsPerRun
+      DRY_RUN: $var.dryRun
     x-omnistrate-compute:
       replicaCount: 1
       instanceTypes:
         - cloudProvider: aws
-          name: t4g.small
+          name: t3a.small
         - cloudProvider: gcp
           name: e2-small
         - cloudProvider: azure
@@ -153,8 +151,8 @@ services:
         export: true
         defaultValue: "false"
     x-omnistrate-mode-internal: false
-# x-omnistrate-image-registry-attributes:
-#   ghcr.io:
-#     auth:
-#       password: ${{ secrets.GitHubPAT }}
-#       username: G-Despacito
+x-omnistrate-image-registry-attributes:
+  ghcr.io:
+    auth:
+      password: ${{ secrets.GitHubPAT }}
+      username: G-Despacito
