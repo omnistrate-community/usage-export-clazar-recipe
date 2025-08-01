@@ -1,30 +1,17 @@
-# Use Python 3.11 slim image as base
-FROM python:3.11-slim
+FROM python:3.13-slim
 
-# Set working directory
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy requirements first for better Docker layer caching
-COPY requirements.txt .
-
-# Install Python dependencies
+# Copy requirements and install dependencies
+COPY requirements.txt /app/
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
-COPY src/ ./src/
+# Copy source code
+COPY src/ /app/src/
 
-# Create a non-root user for security
-RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
-USER appuser
+# Copy the entrypoint script
+COPY entrypoint.sh /app/
+RUN chmod +x /app/entrypoint.sh
 
-# Set environment variables
-ENV PYTHONUNBUFFERED=1
-ENV PYTHONPATH=/app
-
-# Default command
-CMD ["python3", "src/metering_processor.py"]
+# Set the entrypoint
+ENTRYPOINT ["/app/entrypoint.sh"]

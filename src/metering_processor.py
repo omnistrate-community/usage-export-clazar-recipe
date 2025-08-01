@@ -11,7 +11,7 @@ import logging
 import os
 import sys
 from collections import defaultdict
-import datetime
+from datetime import datetime, UTC
 from typing import Dict, List, Optional, Tuple
 import calendar
 
@@ -202,7 +202,7 @@ class MeteringProcessor:
         if contract_id not in state[service_key]['success_contracts'][month_key]:
             state[service_key]['success_contracts'][month_key].append(contract_id)
         
-        state[service_key]['last_updated'] = datetime.datetime.now(datetime.UTC).isoformat() + 'Z'
+        state[service_key]['last_updated'] = datetime.now(UTC).isoformat() + 'Z'
         self.save_state(state)
 
     def mark_contract_month_error(self, service_name: str, environment_type: str, 
@@ -262,7 +262,7 @@ class MeteringProcessor:
             
             state[service_key]['error_contracts'][month_key].append(error_entry)
         
-        state[service_key]['last_updated'] = datetime.datetime.now(datetime.UTC).isoformat() + 'Z'
+        state[service_key]['last_updated'] = datetime.now(UTC).isoformat() + 'Z'
         self.save_state(state)
 
     def get_last_processed_month(self, service_name: str, environment_type: str, 
@@ -316,7 +316,7 @@ class MeteringProcessor:
         
         month_key = self.get_month_key(year, month)
         state[service_key]['last_processed_month'] = month_key
-        state[service_key]['last_updated'] = datetime.datetime.now(datetime.UTC).isoformat() + 'Z'
+        state[service_key]['last_updated'] = datetime.now(UTC).isoformat() + 'Z'
 
         self.save_state(state)
 
@@ -334,7 +334,7 @@ class MeteringProcessor:
             Tuple of (year, month) for next month to process, or None if caught up
         """
         last_processed = self.get_last_processed_month(service_name, environment_type, plan_id)
-        current_date = datetime.datetime.now(datetime.UTC)
+        current_date = datetime.now(UTC)
         current_month = (current_date.year, current_date.month)
         
         if last_processed is None:
@@ -662,10 +662,10 @@ class MeteringProcessor:
             return True
         
         # Define the time window (month boundary)
-        start_time = datetime.datetime(year, month, 1)
+        start_time = datetime(year, month, 1)
         # Last day of the month
         last_day = calendar.monthrange(year, month)[1]
-        end_time = datetime.datetime(year, month, last_day, 23, 59, 59)
+        end_time = datetime(year, month, last_day, 23, 59, 59)
         
         # Send to Clazar
         return self.send_to_clazar(filtered_data, start_time, end_time, 
