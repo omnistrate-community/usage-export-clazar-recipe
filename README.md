@@ -30,11 +30,7 @@ Note: `s3:PutObject` permission is required for storing the state file in S3.
 
 ## Configuration
 
-### Required Environment Variables
-
-Set the environment variables in your `.env` file or directly in your environment.
-
-### Clazar Dimensions
+### Customize Clazar Dimensions
 This script assumes you are charging for the following dimensions and have configured them in Clazar:
 - `memory_byte_hours`
 - `storage_allocated_byte_hours`
@@ -46,7 +42,7 @@ Note the `quantity` field in the payload should always be a string of positive i
 
 ## Job Behavior
 
-### Which Months Are Processed
+### Processing Logic
 
 - On each run, the job determines the "next month to process":
   - If there is no previous processing, it starts from **two months ago** (relative to the current date), to avoid processing the current (possibly incomplete) month.
@@ -54,26 +50,19 @@ Note the `quantity` field in the payload should always be a string of positive i
 - The job processes months sequentially, up to a maximum number of months per run (default: 12).
 - The job **never processes the current or future months**—it only processes months that are fully in the past.
 
-### How Error Contracts Are Handled
+### Error Handling
 
 - When a contract fails to process for a given month (for example, due to a Clazar API error), the contract and its error details are recorded in the state file under `error_contracts` for that service/month/contract.
-- On subsequent runs, the job checks both `success_contracts` and `error_contracts` for each contract-month. If a contract is present in either, it is skipped and **not retried**.
-- This means that error contracts from previous months are **not automatically retried**. Usage for those contracts and months will not be sent to Clazar unless you take manual action.
+- You can find the usage data for these contracts in the state file and manually add usage for those contracts and months in Clazar if needed.
 
-### How to Re-run Error Contracts
-
-To re-run error contracts for a previous month:
-1. Open the state file (e.g., `metering_state.json` in S3).
-2. Locate the relevant `error_contracts` entry for the service/month/contract you want to retry.
-3. Remove the contract entry from the `error_contracts` list for that month.
-4. Save the updated state file.
-5. Re-run the metering job. The job will now attempt to process the contract again for that month.
+### Subscription Cancellation
+Please note that the script does not handle subscription cancellations. If a subscription is canceled, you will need to manually upload the usage data for that contract and month to Clazar in time. Every marketplace has a grace period for submitting usage data after a subscription ends, so ensure you are aware of those deadlines.
 
 ## Run it as a Job in Omnistrate
 To set up a job in Omnistrate, run the following command in your terminal. Make sure you have the Omnistrate CLI installed and configured before running the command.
 
 ```bash
-omctl build-from-repo --product-name clazarUsageExporter
+omctl build-from-repo --product-name "Clazar Exporter"
 ```
 
 To run the job, you can create a resource instance in Omnistrate with the necessary parameters.

@@ -5,21 +5,14 @@ x-omnistrate-integrations:
   - omnistrateMetrics:
 
 x-omnistrate-service-plan:
-  name: 'clazar-usage-export-job'
-  tenancyType: 'OMNISTRATE_MULTI_TENANCY'
+  name: 'clazar-exporter'
+  tenancyType: 'OMNISTRATE_DEDICATED_TENANCY'
   
 services:
   metering-processor:
-    build: .
-    env_file: .env
-    deploy:
-      resources:
-        reservations:
-          cpus: "0.1"
-          memory: 256M
-        limits:
-          cpus: "0.5"
-          memory: 1G
+    build:
+      context: .
+      dockerfile: Dockerfile
     privileged: true
     platform: linux/amd64
     x-omnistrate-compute:
@@ -29,6 +22,8 @@ services:
           name: t4g.small
         - cloudProvider: gcp
           name: e2-small
+        - cloudProvider: azure
+          name: Standard_B1s
     x-omnistrate-job-config:
       backoffLimit: 0
       activeDeadlineSeconds: 3600
@@ -76,13 +71,16 @@ services:
         required: true
         export: false
       - key: clazarCloud
-        description: Clazar Cloud (aws, azure, gcp)
+        description: Clazar Cloud
         name: Clazar Cloud
         type: String
         modifiable: true
         required: true
         export: true
-        defaultValue: "aws"
+        options:
+          - aws
+          - gcp
+          - azure
       - key: awsAccessKeyId
         description: AWS Access Key ID
         name: AWS Access Key ID
@@ -136,7 +134,7 @@ services:
         modifiable: true
         required: false
         export: true
-        defaultValue: false
+        defaultValue: "false"
     x-omnistrate-mode-internal: false
 x-omnistrate-image-registry-attributes:
   ghcr.io:
