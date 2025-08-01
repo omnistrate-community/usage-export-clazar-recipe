@@ -26,9 +26,9 @@ services:
       AWS_ACCESS_KEY_ID: $var.awsAccessKeyId
       AWS_SECRET_ACCESS_KEY: $var.awsSecretAccessKey
       AWS_REGION: $var.awsRegion
-      CLAZAR_API_URL: $var.clazarApiUrl
       STATE_FILE_PATH: $var.stateFilePath
       MAX_MONTHS_PER_RUN: $var.maxMonthsPerRun
+      CRON_MODE: $var.cronMode
       DRY_RUN: $var.dryRun
     x-omnistrate-compute:
       replicaCount: 1
@@ -118,14 +118,6 @@ services:
         required: false
         export: true
         defaultValue: "us-east-1"
-      - key: clazarApiUrl
-        description: Clazar API URL
-        name: Clazar API URL
-        type: String
-        modifiable: true
-        required: false
-        export: true
-        defaultValue: "https://api.clazar.io/metering/"
       - key: stateFilePath
         description: State File Path in the S3 bucket
         name: State File Path
@@ -142,6 +134,14 @@ services:
         required: false
         export: true
         defaultValue: "12"
+      - key: cronMode
+        description: Cron Mode (true/false)
+        name: Cron Mode
+        type: Boolean
+        modifiable: true
+        required: false
+        export: true
+        defaultValue: "true"
       - key: dryRun
         description: Dry Run Mode (true/false)
         name: Dry Run Mode

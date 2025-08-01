@@ -97,17 +97,16 @@ Please note that the script does not handle subscription cancellations. If a sub
 ### Required
 - `AWS_ACCESS_KEY_ID`: AWS access key ID
 - `AWS_SECRET_ACCESS_KEY`: AWS secret access key
+- `AWS_REGION`: AWS region (default: uses AWS default)
+- `S3_BUCKET_NAME`: S3 bucket name
 - `CLAZAR_CLIENT_ID`: Clazar client ID for authentication
 - `CLAZAR_CLIENT_SECRET`: Clazar client secret for authentication
+- `CLAZAR_CLOUD`: Cloud provider name (e.g., "aws", "gcp", "azure")
 - `SERVICE_NAME`: Name of the service (e.g., "Postgres")
 - `ENVIRONMENT_TYPE`: Environment type (e.g., "PROD", "DEV")
 - `PLAN_ID`: Plan ID (e.g., "pt-HJSv20iWX0")
 
 ### Optional
-- `AWS_REGION`: AWS region (default: uses AWS default)
-- `S3_BUCKET_NAME`: S3 bucket name (default: "omnistrate-usage-metering-export-demo")
-- `CLAZAR_API_URL`: Clazar API URL (default: "https://api.clazar.io/metering/")
-- `CLAZAR_CLOUD`: Cloud provider name (default: "aws")
 - `STATE_FILE_PATH`: Path to state file in S3 (default: "metering_state.json")
 - `MAX_MONTHS_PER_RUN`: Maximum months to process per run (default: 12)
 - `MAX_RETRIES`: Maximum retry attempts for failed contracts (default: 5)

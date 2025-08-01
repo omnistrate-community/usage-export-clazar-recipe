@@ -25,16 +25,14 @@ from botocore.exceptions import ClientError, NoCredentialsError
 
 class MeteringProcessor:
     def __init__(self, bucket_name: str, state_file_path: str = "metering_state.json", 
-                 clazar_api_url: str = "https://api.clazar.io/metering/", dry_run: bool = False,
-                 access_token: str = None, cloud: str = "aws", aws_access_key_id: str = None,
-                 aws_secret_access_key: str = None, aws_region: str = None):
+                 dry_run: bool = False, access_token: str = None, cloud: str = "aws", 
+                 aws_access_key_id: str = None, aws_secret_access_key: str = None, aws_region: str = None):
         """
         Initialize the metering processor.
         
         Args:
             bucket_name: S3 bucket name containing metering data
             state_file_path: Path to the state file in S3 that tracks last processed months
-            clazar_api_url: Clazar API endpoint URL
             dry_run: If True, skip actual API calls and only log payloads
             access_token: Clazar access token for authentication
             cloud: Cloud name (e.g., 'aws', 'azure', 'gcp')
@@ -44,7 +42,6 @@ class MeteringProcessor:
         """
         self.bucket_name = bucket_name
         self.state_file_path = state_file_path
-        self.clazar_api_url = clazar_api_url
         self.dry_run = dry_run
         self.access_token = access_token
         self.cloud = cloud
@@ -733,7 +730,7 @@ class MeteringProcessor:
                     
                     if self.dry_run:
                         self.logger.info("DRY RUN MODE: Would send the following payload to Clazar:")
-                        self.logger.info(f"URL: {self.clazar_api_url}")
+                        self.logger.info(f"URL: https://api.clazar.io/metering/")
                         self.logger.info(f"Payload: {json.dumps(payload, indent=2)}")
                         self.logger.info("DRY RUN MODE: Skipping actual API call")
                         
@@ -743,7 +740,7 @@ class MeteringProcessor:
                         success = True
                         break
                     
-                    response = requests.post(self.clazar_api_url, json=payload, headers=headers, timeout=30)
+                    response = requests.post("https://api.clazar.io/metering/", json=payload, headers=headers, timeout=30)
                     
                     if response.status_code != 200:
                         raise requests.RequestException(f"HTTP {response.status_code}: {response.text}")
@@ -897,7 +894,7 @@ class MeteringProcessor:
                     
                     if self.dry_run:
                         self.logger.info("DRY RUN MODE: Would retry sending the following payload to Clazar:")
-                        self.logger.info(f"URL: {self.clazar_api_url}")
+                        self.logger.info(f"URL: https://api.clazar.io/metering/")
                         self.logger.info(f"Payload: {json.dumps(payload, indent=2)}")
                         
                         # In dry run, remove from error and mark as processed
@@ -907,9 +904,9 @@ class MeteringProcessor:
                                                          contract_id, year, month)
                         success = True
                         break
-                    
-                    response = requests.post(self.clazar_api_url, json=payload, headers=headers, timeout=30)
-                    
+
+                    response = requests.post("https://api.clazar.io/metering/", json=payload, headers=headers, timeout=30)
+
                     if response.status_code != 200:
                         raise requests.RequestException(f"HTTP {response.status_code}: {response.text}")
                     
@@ -1179,7 +1176,6 @@ def main_processing():
     # Clazar Configuration
     CLAZAR_CLIENT_ID = os.getenv('CLAZAR_CLIENT_ID', '')
     CLAZAR_CLIENT_SECRET = os.getenv('CLAZAR_CLIENT_SECRET', '')
-    CLAZAR_API_URL = os.getenv('CLAZAR_API_URL', 'https://api.clazar.io/metering/')
     CLAZAR_CLOUD = os.getenv('CLAZAR_CLOUD', 'aws')
 
     # Metering Processor Configuration
@@ -1231,8 +1227,7 @@ def main_processing():
         # Initialize the processor
         processor = MeteringProcessor(
             bucket_name=BUCKET_NAME, 
-            state_file_path=STATE_FILE_PATH, 
-            clazar_api_url=CLAZAR_API_URL, 
+            state_file_path=STATE_FILE_PATH,
             dry_run=DRY_RUN, 
             access_token=access_token, 
             cloud=CLAZAR_CLOUD,
