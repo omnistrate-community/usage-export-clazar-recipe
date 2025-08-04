@@ -7,6 +7,10 @@ if [ -f "requirements.txt" ]; then
     pip install -r requirements.txt
 fi
 
+# Create environment file for cron jobs
+echo "Creating environment file for cron..."
+printenv | grep -E '^(AWS_|S3_|CLAZAR_|SERVICE_|ENVIRONMENT_|PLAN_|STATE_|MAX_|START_|DRY_|DIMENSION)' > /app/cron.env || true
+
 # Start cron service
 echo "Starting cron service..."
 service cron start

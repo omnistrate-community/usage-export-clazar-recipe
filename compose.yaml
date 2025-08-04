@@ -45,13 +45,6 @@ services:
         - cloudProvider: azure
           name: Standard_B1s
     x-omnistrate-api-params:
-      - key: s3BucketName
-        description: The name of the S3 bucket to pull usage data from.
-        name: S3 Bucket Name
-        type: String
-        modifiable: true
-        required: true
-        export: true
       - key: serviceName
         description: Service Name
         name: Service Name
@@ -60,7 +53,7 @@ services:
         required: true
         export: true
       - key: environmentType
-        description: Environment Type
+        description: Environment Type (e.g. PROD)
         name: Environment Type
         type: String
         modifiable: true
@@ -119,9 +112,16 @@ services:
         modifiable: true
         required: false
         export: true
-        defaultValue: "us-east-1"
+        defaultValue: "us-east-2"
+      - key: s3BucketName
+        description: The name of the S3 bucket to pull usage data from.
+        name: S3 Bucket Name
+        type: String
+        modifiable: true
+        required: true
+        export: true
       - key: stateFilePath
-        description: State File Path in the S3 bucket
+        description: Path to store the state file for storing processed data in the S3 bucket.
         name: State File Path
         type: String
         modifiable: true 
@@ -133,11 +133,10 @@ services:
         name: Start Month
         type: String
         modifiable: true
-        required: false
+        required: true
         export: true
-        defaultValue: "2025-06"
       - key: dryRun
-        description: Dry Run Mode (true/false)
+        description: Enable dry run mode to test without actual data sending to Clazar.
         name: Dry Run Mode
         type: Boolean
         modifiable: true
