@@ -1048,7 +1048,7 @@ class MeteringProcessor:
         return retry_success and send_success
 
     def process_pending_months(self, service_name: str, environment_type: str, 
-                              plan_id: str, max_months: int = 12, max_retries: int = 5) -> bool:
+                              plan_id: str, max_retries: int = 5) -> bool:
         """
         Process all pending months for a specific service configuration.
         
@@ -1056,7 +1056,6 @@ class MeteringProcessor:
             service_name: Name of the service
             environment_type: Environment type
             plan_id: Plan ID
-            max_months: Maximum number of months to process in one run
             max_retries: Maximum retry attempts for failed contracts
             
         Returns:
@@ -1067,7 +1066,7 @@ class MeteringProcessor:
         processed_count = 0
         all_successful = True
         
-        while processed_count < max_months:
+        while True:
             next_month = self.get_next_month_to_process(service_name, environment_type, plan_id)
             
             if next_month is None:
@@ -1075,7 +1074,7 @@ class MeteringProcessor:
                 break
             
             year, month = next_month
-            self.logger.info(f"Processing month {processed_count + 1}/{max_months}: {year}-{month:02d}")
+            self.logger.info(f"Processing month {processed_count + 1}: {year}-{month:02d}")
             
             success = self.process_month(service_name, environment_type, plan_id, year, month, max_retries)
             
@@ -1183,7 +1182,6 @@ def main_processing():
     ENVIRONMENT_TYPE = os.getenv('ENVIRONMENT_TYPE', 'PROD')
     PLAN_ID = os.getenv('PLAN_ID', 'pt-HJSv20iWX0')
     STATE_FILE_PATH = os.getenv('STATE_FILE_PATH', 'metering_state.json')
-    MAX_MONTHS_PER_RUN = int(os.getenv('MAX_MONTHS_PER_RUN', '12'))
     MAX_RETRIES = int(os.getenv('MAX_RETRIES', '5'))
     DRY_RUN = os.getenv('DRY_RUN', 'false').lower() in ('true', '1', 'yes')
     
@@ -1238,7 +1236,7 @@ def main_processing():
         
         # Process all pending months
         success = processor.process_pending_months(
-            SERVICE_NAME, ENVIRONMENT_TYPE, PLAN_ID, MAX_MONTHS_PER_RUN, MAX_RETRIES
+            SERVICE_NAME, ENVIRONMENT_TYPE, PLAN_ID, MAX_RETRIES
         )
         
         if success:
@@ -1260,15 +1258,7 @@ def main_processing():
 def main():
     """Main function to run the metering processor."""
     
-    # Check if running as cron job
-    CRON_MODE = os.getenv('CRON_MODE', 'false').lower() in ('true', '1', 'yes')
-    
-    if CRON_MODE:
-        run_as_cron_job()
-    else:
-        # Run once
-        success = main_processing()
-        sys.exit(0 if success else 1)
+    run_as_cron_job()
 
 
 if __name__ == "__main__":

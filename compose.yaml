@@ -27,8 +27,6 @@ services:
       AWS_SECRET_ACCESS_KEY: $var.awsSecretAccessKey
       AWS_REGION: $var.awsRegion
       STATE_FILE_PATH: $var.stateFilePath
-      MAX_MONTHS_PER_RUN: $var.maxMonthsPerRun
-      CRON_MODE: $var.cronMode
       DRY_RUN: $var.dryRun
     x-omnistrate-compute:
       replicaCount: 1
@@ -39,9 +37,6 @@ services:
           name: e2-small
         - cloudProvider: azure
           name: Standard_B1s
-    x-omnistrate-job-config:
-      backoffLimit: 0
-      activeDeadlineSeconds: 3600
     x-omnistrate-api-params:
       - key: s3BucketName
         description: The name of the S3 bucket to pull usage data from.
@@ -126,22 +121,6 @@ services:
         required: false
         export: true
         defaultValue: "metering_state.json"
-      - key: maxMonthsPerRun
-        description: Maximum Months to Process Per Run
-        name: Max Months Per Run
-        type: Float64
-        modifiable: true
-        required: false
-        export: true
-        defaultValue: "12"
-      - key: cronMode
-        description: Cron Mode (true/false)
-        name: Cron Mode
-        type: Boolean
-        modifiable: true
-        required: false
-        export: true
-        defaultValue: "true"
       - key: dryRun
         description: Dry Run Mode (true/false)
         name: Dry Run Mode
