@@ -1,6 +1,6 @@
-# S3 to Clazar Usage Export Script
+# S3 to Clazar Usage Exporter
 
-This script automatically pulls usage metering data from S3 and uploads aggregated data to Clazar on a monthly basis. It maintains state in S3 to ensure no data gaps or duplicates, making it suitable for production deployment. The script tracks processed contracts per month to avoid duplicate submissions during reruns.
+This exporter automatically pulls usage metering data from S3 and uploads aggregated data to Clazar on a monthly basis. It is designed to run as a cron job, processing usage data for the previous month and sending it to Clazar for billing purposes.
 
 ## Prerequisites
 
@@ -62,8 +62,12 @@ The script supports defining custom dimensions with calculated values. You can d
 **Example Usage:**
 - `DIMENSION1_NAME`: "pod_hours"
 - `DIMENSION1_FORMULA`: "cpu_core_hours / 2"
+- `DIMENSION2_NAME`: ""
+- `DIMENSION2_FORMULA`: ""
+- `DIMENSION3_NAME`: ""
+- `DIMENSION3_FORMULA`: ""
 
-This would create a custom dimension called "pod_hours" calculated as half of the CPU core hours (assuming 2-core machines).
+This would create a custom dimension called "pod_hours" calculated as half of the CPU core hours (assuming 2-core machines). Second and third dimensions are left empty in this case to indicate no additional custom dimensions are defined.
 
 **Available Variables in Formulas:**
 - `memory_byte_hours`: Memory usage in byte-hours
@@ -76,27 +80,12 @@ This would create a custom dimension called "pod_hours" calculated as half of th
 - Formulas can use basic arithmetic operations (+, -, *, /, //, %, **)
 - Formulas can use functions: abs, min, max, round, int, float
 - If any formula fails to evaluate, the entire contract's data for that month will be skipped
-- Formulas must evaluate to non-negative numbers
+- Formulas must evaluate to non-negative integers
+- Combined dimensions can be used to create more complex calculations, such as:
+  - `DIMENSION1_NAME`: "total_compute_units"
+  - `DIMENSION1_FORMULA`: "cpu_core_hours + memory_byte_hours / 1024 ** 3"
 
-**Note:** When custom dimensions are configured, only the custom dimensions will be sent to Clazar. The original dimensions (memory_byte_hours, storage_allocated_byte_hours, cpu_core_hours) will not be sent unless explicitly included in your custom formulas.
-
-**Examples:**
-
-1. **Single custom dimension (pod hours):**
-   - `DIMENSION1_NAME`: "pod_hours"
-   - `DIMENSION1_FORMULA`: "cpu_core_hours / 2"
-
-2. **Multiple custom dimensions:**
-   - `DIMENSION1_NAME`: "compute_units"
-   - `DIMENSION1_FORMULA`: "cpu_core_hours + memory_byte_hours / 1024 ** 3"
-   - `DIMENSION2_NAME`: "total_storage_gib_hours"
-   - `DIMENSION2_FORMULA`: "storage_allocated_byte_hours / 1024 ** 3"
-
-3. **Pass-through existing dimensions with custom names:**
-   - `DIMENSION1_NAME`: "cpu_hours"
-   - `DIMENSION1_FORMULA`: "cpu_core_hours"
-   - `DIMENSION2_NAME`: "memory_gib_hours"
-   - `DIMENSION2_FORMULA`: "memory_byte_hours / 1024 ** 3"
+**Note:** The dimension names should match your configured Clazar dimensions. Otherwise, Clazar will not recognize them. 
 
 ## Job Behavior
 
