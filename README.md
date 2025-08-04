@@ -28,21 +28,33 @@ Your AWS credentials need the following S3 permissions:
 
 Note: `s3:PutObject` permission is required for storing the state file in S3.
 
-## Configuration
+## Deploy in Omnistrate
+To deploy the Clazar Exporter in Omnistrate, run the following command in your terminal. Make sure you have the Omnistrate CLI installed and configured before running the command.
 
-**Default dimensions:**
-- `memory_byte_hours`
-- `storage_allocated_byte_hours`
-- `cpu_core_hours`
+```bash
+omctl build-from-repo --product-name "Clazar Exporter"
+```
+
+To run the job, you can create a resource instance in Omnistrate with below parameters:
+
+- `AWS_ACCESS_KEY_ID`: AWS access key ID
+- `AWS_SECRET_ACCESS_KEY`: AWS secret access key
+- `AWS_REGION`: AWS region (default: uses AWS default)
+- `S3_BUCKET_NAME`: S3 bucket name
+- `CLAZAR_CLIENT_ID`: Clazar client ID for authentication
+- `CLAZAR_CLIENT_SECRET`: Clazar client secret for authentication
+- `CLAZAR_CLOUD`: Cloud provider name (e.g., "aws", "gcp", "azure")
+- `SERVICE_NAME`: Name of the service (e.g., "Postgres")
+- `ENVIRONMENT_TYPE`: Environment type (e.g., "PROD", "DEV")
+- `PLAN_ID`: Plan ID (e.g., "pt-HJSv20iWX0")
+- `STATE_FILE_PATH`: Path to state file in S3 (default: "metering_state.json")
+- `START_MONTH`: Start month for processing (format: YYYY-MM, default: "2025-06")
+- `DRY_RUN`: Set to "true" to run without sending data to Clazar (default: "false")
 
 ## Job Behavior
 
-### Cron Job Mode
-The script can run as a continuous cron job by setting the environment variable `CRON_MODE=true`. In this mode:
-- The script runs continuously and executes automatically on the **first day of every month at 00:10 UTC**
-- It waits for the scheduled time and processes all pending months
-- After completion, it sleeps until the next scheduled run
-- Perfect for production deployment where you want automatic monthly processing
+### Periodically Runs
+The script is designed to run periodically, processing usage data for the previous month.
 
 ### Processing Logic
 
@@ -62,81 +74,6 @@ The script can run as a continuous cron job by setting the environment variable 
 
 ### Subscription Cancellation
 Please note that the script does not handle subscription cancellations. If a subscription is canceled, you will need to manually upload the usage data for that contract and month to Clazar in time. Every marketplace has a grace period for submitting usage data after a subscription ends, so ensure you are aware of those deadlines.
-
-## Environment Variables
-
-### Required
-- `AWS_ACCESS_KEY_ID`: AWS access key ID
-- `AWS_SECRET_ACCESS_KEY`: AWS secret access key
-- `AWS_REGION`: AWS region (default: uses AWS default)
-- `S3_BUCKET_NAME`: S3 bucket name
-- `CLAZAR_CLIENT_ID`: Clazar client ID for authentication
-- `CLAZAR_CLIENT_SECRET`: Clazar client secret for authentication
-- `CLAZAR_CLOUD`: Cloud provider name (e.g., "aws", "gcp", "azure")
-- `SERVICE_NAME`: Name of the service (e.g., "Postgres")
-- `ENVIRONMENT_TYPE`: Environment type (e.g., "PROD", "DEV")
-- `PLAN_ID`: Plan ID (e.g., "pt-HJSv20iWX0")
-
-### Optional
-- `STATE_FILE_PATH`: Path to state file in S3 (default: "metering_state.json")
-- `START_MONTH`: Start month for processing (format: YYYY-MM, default: "2025-06")
-- `DRY_RUN`: Set to "true" to run without sending data to Clazar (default: "false")
-
-## Deploy in Omnistrate
-To deploy the Clazar Exporter in Omnistrate, run the following command in your terminal. Make sure you have the Omnistrate CLI installed and configured before running the command.
-
-```bash
-omctl build-from-repo --product-name "Clazar Exporter"
-```
-
-To run the job, you can create a resource instance in Omnistrate with the necessary parameters.
-
-## Running the Script
-
-### One-time Execution
-To run the script once and process all pending months:
-```bash
-python3 src/metering_processor.py
-```
-
-### Cron Job Mode (Recommended for Production)
-To run the script as a continuous cron job that automatically executes on the first day of every month at 00:10 UTC:
-```bash
-CRON_MODE=true python3 src/metering_processor.py
-```
-
-### Docker Usage
-With environment variables in a file:
-```bash
-# One-time run
-docker run --env-file .env your-image-name
-
-# Cron job mode
-docker run --env-file .env -e CRON_MODE=true your-image-name
-```
-
-### Example Environment File (.env)
-```bash
-# AWS Configuration
-AWS_ACCESS_KEY_ID=your_access_key
-AWS_SECRET_ACCESS_KEY=your_secret_key
-AWS_REGION=us-east-1
-S3_BUCKET_NAME=your-bucket-name
-
-# Clazar Configuration
-CLAZAR_CLIENT_ID=your_client_id
-CLAZAR_CLIENT_SECRET=your_client_secret
-
-# Service Configuration
-SERVICE_NAME=Postgres
-ENVIRONMENT_TYPE=PROD
-PLAN_ID=pt-HJSv20iWX0
-
-# Optional Configuration
-MAX_RETRIES=5
-CRON_MODE=true
-DRY_RUN=false
-```
 
 ## Tracking State
 
