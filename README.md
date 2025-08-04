@@ -51,6 +51,53 @@ To run the job, you can create a resource instance in Omnistrate with below para
 - `START_MONTH`: Start month for processing (format: YYYY-MM, default: "2025-06")
 - `DRY_RUN`: Set to "true" to run without sending data to Clazar (default: "false")
 
+### Custom Dimension Configuration
+
+The script supports defining custom dimensions with calculated values. You can define up to 3 custom dimensions using the following environment variables:
+
+- `DIMENSION1_NAME` & `DIMENSION1_FORMULA`: First custom dimension name and formula
+- `DIMENSION2_NAME` & `DIMENSION2_FORMULA`: Second custom dimension name and formula  
+- `DIMENSION3_NAME` & `DIMENSION3_FORMULA`: Third custom dimension name and formula
+
+**Example Usage:**
+- `DIMENSION1_NAME`: "pod_hours"
+- `DIMENSION1_FORMULA`: "cpu_core_hours / 2"
+
+This would create a custom dimension called "pod_hours" calculated as half of the CPU core hours (assuming 2-core machines).
+
+**Available Variables in Formulas:**
+- `memory_byte_hours`: Memory usage in byte-hours
+- `storage_allocated_byte_hours`: Storage usage in byte-hours
+- `cpu_core_hours`: CPU core usage in core-hours
+
+**Formula Rules:**
+- Both name and formula must be provided together for each dimension
+- Dimension names must be unique across all custom dimensions
+- Formulas can use basic arithmetic operations (+, -, *, /, //, %, **)
+- Formulas can use functions: abs, min, max, round, int, float
+- If any formula fails to evaluate, the entire contract's data for that month will be skipped
+- Formulas must evaluate to non-negative numbers
+
+**Note:** When custom dimensions are configured, only the custom dimensions will be sent to Clazar. The original dimensions (memory_byte_hours, storage_allocated_byte_hours, cpu_core_hours) will not be sent unless explicitly included in your custom formulas.
+
+**Examples:**
+
+1. **Single custom dimension (pod hours):**
+   - `DIMENSION1_NAME`: "pod_hours"
+   - `DIMENSION1_FORMULA`: "cpu_core_hours / 2"
+
+2. **Multiple custom dimensions:**
+   - `DIMENSION1_NAME`: "compute_units"
+   - `DIMENSION1_FORMULA`: "cpu_core_hours + memory_byte_hours / 1000000000"
+   - `DIMENSION2_NAME`: "total_storage_gb_hours"
+   - `DIMENSION2_FORMULA`: "storage_allocated_byte_hours / 1000000000"
+
+3. **Pass-through existing dimensions with custom names:**
+   - `DIMENSION1_NAME`: "cpu_hours"
+   - `DIMENSION1_FORMULA`: "cpu_core_hours"
+   - `DIMENSION2_NAME`: "memory_gb_hours"
+   - `DIMENSION2_FORMULA`: "memory_byte_hours / 1000000000"
+
 ## Job Behavior
 
 ### Periodically Runs
@@ -108,10 +155,10 @@ Example state file structure:
               {
                 "cloud": "aws",
                 "contract_id": "ce751fd3-ghi9-6159-dhgf-f4hh778e94bg",
-                "dimension": "cpu_core_hours",
+                "dimension": "pod_hours",
                 "start_time": "2025-06-01T00:00:00Z",
                 "end_time": "2025-06-30T23:59:59Z",
-                "quantity": "720"
+                "quantity": "360"
               }
             ]
           }
@@ -143,6 +190,6 @@ Example output:
 2025-07-25 20:15:32,736 - INFO - Filtered from 12 to 6 unprocessed contract records
 2025-07-25 20:15:32,736 - INFO - Sending 3 metering records to Clazar for contract ae641bd1-edf8-4038-bfed-d2ff556c729e
 2025-07-25 20:15:37,526 - INFO - Successfully sent data to Clazar for contract ae641bd1-edf8-4038-bfed-d2ff556c729e
-2025-07-25 20:15:37,526 - INFO - Response: {'results': [{'id': '4a4fefdc-07a9-4b84-a1ee-60c6bb690b12', 'cloud': 'aws', 'contract_id': 'ae641bd1-edf8-4038-bfed-d2ff556c729e', 'dimension': 'cpu_core_hours', 'quantity': '720', 'status': 'success', 'start_time': '2025-06-01T00:00:00Z', 'end_time': '2025-06-30T23:59:59Z', 'custom_properties': {}}]}
+2025-07-25 20:15:37,526 - INFO - Response: {'results': [{'id': '4a4fefdc-07a9-4b84-a1ee-60c6bb690b12', 'cloud': 'aws', 'contract_id': 'ae641bd1-edf8-4038-bfed-d2ff556c729e', 'dimension': 'pod_hours', 'quantity': '360', 'status': 'success', 'start_time': '2025-06-01T00:00:00Z', 'end_time': '2025-06-30T23:59:59Z', 'custom_properties': {}}]}
 2025-07-25 20:15:33,869 - INFO - Saved state to S3: s3://omnistrate-usage-metering-export-demo/metering_state.json
 ```

@@ -29,6 +29,12 @@ services:
       STATE_FILE_PATH: $var.stateFilePath
       START_MONTH: $var.startMonth
       DRY_RUN: $var.dryRun
+      DIMENSION1_NAME: $var.dimension1Name
+      DIMENSION1_FORMULA: $var.dimension1Formula
+      DIMENSION2_NAME: $var.dimension2Name
+      DIMENSION2_FORMULA: $var.dimension2Formula
+      DIMENSION3_NAME: $var.dimension3Name
+      DIMENSION3_FORMULA: $var.dimension3Formula
     x-omnistrate-compute:
       replicaCount: 1
       instanceTypes:
@@ -138,6 +144,48 @@ services:
         required: false
         export: true
         defaultValue: "false"
+      - key: dimension1Name
+        description: Custom Dimension 1 Name
+        name: Custom Dimension 1 Name
+        type: String
+        modifiable: true
+        required: false
+        export: true
+      - key: dimension1Formula
+        description: Custom Dimension 1 Formula (e.g., cpu_core_hours / 2)
+        name: Custom Dimension 1 Formula
+        type: String
+        modifiable: true
+        required: false
+        export: true
+      - key: dimension2Name
+        description: Custom Dimension 2 Name
+        name: Custom Dimension 2 Name
+        type: String
+        modifiable: true
+        required: false
+        export: true
+      - key: dimension2Formula
+        description: Custom Dimension 2 Formula (e.g., memory_byte_hours * 2)
+        name: Custom Dimension 2 Formula
+        type: String
+        modifiable: true
+        required: false
+        export: true
+      - key: dimension3Name
+        description: Custom Dimension 3 Name
+        name: Custom Dimension 3 Name
+        type: String
+        modifiable: true
+        required: false
+        export: true
+      - key: dimension3Formula
+        description: Custom Dimension 3 Formula (e.g., storage_allocated_byte_hours + cpu_core_hours)
+        name: Custom Dimension 3 Formula
+        type: String
+        modifiable: true
+        required: false
+        export: true
     x-omnistrate-mode-internal: false
 x-omnistrate-image-registry-attributes:
   ghcr.io:

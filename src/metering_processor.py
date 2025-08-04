@@ -25,7 +25,8 @@ from botocore.exceptions import ClientError, NoCredentialsError
 class MeteringProcessor:
     def __init__(self, bucket_name: str, state_file_path: str = "metering_state.json", 
                  dry_run: bool = False, access_token: str = None, cloud: str = "aws", 
-                 aws_access_key_id: str = None, aws_secret_access_key: str = None, aws_region: str = None):
+                 aws_access_key_id: str = None, aws_secret_access_key: str = None, aws_region: str = None,
+                 custom_dimensions: Dict[str, str] = None):
         """
         Initialize the metering processor.
         
@@ -38,12 +39,14 @@ class MeteringProcessor:
             aws_access_key_id: AWS access key ID
             aws_secret_access_key: AWS secret access key
             aws_region: AWS region
+            custom_dimensions: Dict mapping custom dimension names to their formulas
         """
         self.bucket_name = bucket_name
         self.state_file_path = state_file_path
         self.dry_run = dry_run
         self.access_token = access_token
         self.cloud = cloud
+        self.custom_dimensions = custom_dimensions or {}
         
         # Configure AWS credentials and create S3 client
         s3_kwargs = {}
@@ -616,6 +619,68 @@ class MeteringProcessor:
         self.logger.info(f"Aggregated {len(usage_records)} records into {len(aggregated_data)} entries")
         return dict(aggregated_data)
 
+    def transform_dimensions(self, aggregated_data: Dict[Tuple[str, str], float]) -> Dict[Tuple[str, str], float]:
+        """
+        Transform dimensions according to custom dimension formulas.
+        
+        Args:
+            aggregated_data: Original aggregated data with (contract_id, dimension) as key
+            
+        Returns:
+            Transformed aggregated data with custom dimensions
+        """
+        if not self.custom_dimensions:
+            # No custom dimensions defined, return original data
+            return aggregated_data
+        
+        # Group data by contract for easier processing
+        contract_data = defaultdict(dict)
+        for (contract_id, dimension), value in aggregated_data.items():
+            contract_data[contract_id][dimension] = value
+        
+        transformed_data = {}
+        
+        for contract_id, dimensions in contract_data.items():
+            # Apply custom dimension transformations
+            for custom_name, formula in self.custom_dimensions.items():
+                try:
+                    # Create a safe evaluation context with available dimensions
+                    eval_context = {
+                        'memory_byte_hours': dimensions.get('memory_byte_hours', 0),
+                        'storage_allocated_byte_hours': dimensions.get('storage_allocated_byte_hours', 0),
+                        'cpu_core_hours': dimensions.get('cpu_core_hours', 0),
+                        # Add mathematical functions for safety
+                        '__builtins__': {
+                            'abs': abs, 'min': min, 'max': max, 'round': round,
+                            'int': int, 'float': float
+                        }
+                    }
+                    
+                    # Evaluate the formula
+                    result = eval(formula, eval_context)
+                    if not isinstance(result, (int, float)) or result < 0:
+                        raise ValueError(f"Formula must evaluate to a non-negative number, got: {result}")
+                    
+                    transformed_data[(contract_id, custom_name)] = float(result)
+                    self.logger.debug(f"Contract {contract_id}: {custom_name} = {result} (formula: {formula})")
+                    
+                except Exception as e:
+                    error_msg = f"Error evaluating formula for dimension '{custom_name}' and contract '{contract_id}': {e}"
+                    self.logger.error(error_msg)
+                    # Don't add this dimension to the result, effectively skipping this contract's data
+                    # This ensures we don't send invalid/incomplete usage data to Clazar
+                    if contract_id in [key[0] for key in transformed_data.keys()]:
+                        # Remove any previous dimensions for this contract if we had an error
+                        transformed_data = {k: v for k, v in transformed_data.items() if k[0] != contract_id}
+                    break  # Skip this contract entirely if any dimension fails
+        
+        if transformed_data:
+            self.logger.info(f"Transformed {len(aggregated_data)} original dimension entries into {len(transformed_data)} custom dimension entries")
+        else:
+            self.logger.warning("No valid custom dimension data was generated. Check your dimension formulas.")
+        
+        return transformed_data
+
     def filter_success_contracts(self, aggregated_data: Dict[Tuple[str, str], float],
                                   service_name: str, environment_type: str, plan_id: str,
                                   year: int, month: int) -> Dict[Tuple[str, str], float]:
@@ -1008,6 +1073,13 @@ class MeteringProcessor:
         # Aggregate the data
         aggregated_data = self.aggregate_usage_data(all_usage_records)
         
+        # Transform dimensions according to custom dimension formulas
+        if self.custom_dimensions:
+            aggregated_data = self.transform_dimensions(aggregated_data)
+            if not aggregated_data:
+                self.logger.error(f"All dimension transformations failed for {year}-{month:02d}. Skipping this month.")
+                return False
+        
         # Filter out already processed contracts
         filtered_data = self.filter_success_contracts(aggregated_data, service_name, 
                                                        environment_type, plan_id, year, month)
@@ -1097,6 +1169,31 @@ def main_processing():
     START_MONTH = os.getenv('START_MONTH', '2025-01')
     DRY_RUN = os.getenv('DRY_RUN', 'false').lower() in ('true', '1', 'yes')
     
+    # Parse custom dimensions from environment variables
+    custom_dimensions = {}
+    for i in range(1, 4):  # Support up to 3 custom dimensions
+        name_key = f'DIMENSION{i}_NAME'
+        formula_key = f'DIMENSION{i}_FORMULA'
+        
+        dimension_name = os.getenv(name_key)
+        dimension_formula = os.getenv(formula_key)
+        
+        if dimension_name and dimension_formula:
+            custom_dimensions[dimension_name] = dimension_formula
+        elif dimension_name or dimension_formula:
+            print(f"Error: Both {name_key} and {formula_key} must be provided together")
+            sys.exit(1)
+    
+    # Validate no duplicate dimension names
+    if len(custom_dimensions) != len(set(custom_dimensions.keys())):
+        print("Error: Duplicate dimension names found in custom dimensions")
+        sys.exit(1)
+    
+    if custom_dimensions:
+        print(f"Custom dimensions configured: {list(custom_dimensions.keys())}")
+        for name, formula in custom_dimensions.items():
+            print(f"  {name}: {formula}")
+    
     # Validate required environment variables
     if not all([BUCKET_NAME, SERVICE_NAME, ENVIRONMENT_TYPE, PLAN_ID]):
         print("Error: Missing required configuration. Please set environment variables:")
@@ -1143,7 +1240,8 @@ def main_processing():
             cloud=CLAZAR_CLOUD,
             aws_access_key_id=AWS_ACCESS_KEY_ID,
             aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
-            aws_region=AWS_REGION
+            aws_region=AWS_REGION,
+            custom_dimensions=custom_dimensions
         )
         
         # Process all pending months

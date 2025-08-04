@@ -32,14 +32,12 @@ class TestMeteringProcessor(unittest.TestCase):
             self.processor = MeteringProcessor(
                 bucket_name=self.bucket_name,
                 state_file_path=self.state_file,
-                clazar_api_url=self.clazar_api_url,
                 dry_run=False
             )
             
             self.dry_run_processor = MeteringProcessor(
                 bucket_name=self.bucket_name,
                 state_file_path=self.state_file,
-                clazar_api_url=self.clazar_api_url,
                 dry_run=True
             )
     
