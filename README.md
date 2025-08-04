@@ -92,7 +92,7 @@ This would create a custom dimension called "pod_hours" calculated as half of th
 ## Job Behavior
 
 ### Periodic Execution
-The metering processor is configured to run as a cron job every 5 minutes. When the container starts, it immediately runs the script once before the cron schedule takes effect. You can also modify the cron schedule by editing the `crontab` file in the repository.
+The metering processor is configured to run as a cron job every 5 minutes. When the container starts, it immediately runs the script once before the cron schedule takes effect. You can also modify the cron schedule by editing the `crontab` file in the repository. If a previous run is still executing, the new cron job will be skipped to prevent overlapping executions.
 
 ### Processing Logic
 
