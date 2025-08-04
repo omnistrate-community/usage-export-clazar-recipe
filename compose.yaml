@@ -149,14 +149,14 @@ services:
         name: Custom Dimension 1 Name
         type: String
         modifiable: true
-        required: false
+        required: true
         export: true
       - key: dimension1Formula
         description: Custom Dimension 1 Formula (e.g., cpu_core_hours / 2)
         name: Custom Dimension 1 Formula
         type: String
         modifiable: true
-        required: false
+        required: true
         export: true
       - key: dimension2Name
         description: Custom Dimension 2 Name
