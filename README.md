@@ -88,20 +88,20 @@ This would create a custom dimension called "pod_hours" calculated as half of th
 
 2. **Multiple custom dimensions:**
    - `DIMENSION1_NAME`: "compute_units"
-   - `DIMENSION1_FORMULA`: "cpu_core_hours + memory_byte_hours / 1000000000"
-   - `DIMENSION2_NAME`: "total_storage_gb_hours"
-   - `DIMENSION2_FORMULA`: "storage_allocated_byte_hours / 1000000000"
+   - `DIMENSION1_FORMULA`: "cpu_core_hours + memory_byte_hours / 1024 ** 3"
+   - `DIMENSION2_NAME`: "total_storage_gib_hours"
+   - `DIMENSION2_FORMULA`: "storage_allocated_byte_hours / 1024 ** 3"
 
 3. **Pass-through existing dimensions with custom names:**
    - `DIMENSION1_NAME`: "cpu_hours"
    - `DIMENSION1_FORMULA`: "cpu_core_hours"
-   - `DIMENSION2_NAME`: "memory_gb_hours"
-   - `DIMENSION2_FORMULA`: "memory_byte_hours / 1000000000"
+   - `DIMENSION2_NAME`: "memory_gib_hours"
+   - `DIMENSION2_FORMULA`: "memory_byte_hours / 1024 ** 3"
 
 ## Job Behavior
 
-### Periodically Runs
-The script is designed to run periodically, processing usage data for the previous month.
+### Periodic Execution
+The metering processor is configured to run as a cron job every 5 minutes. When the container starts, it immediately runs the script once before the cron schedule takes effect. You can also modify the cron schedule by editing the `crontab` file in the repository.
 
 ### Processing Logic
 

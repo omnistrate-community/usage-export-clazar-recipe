@@ -7,6 +7,14 @@ if [ -f "requirements.txt" ]; then
     pip install -r requirements.txt
 fi
 
-# Run the Python script
-echo "Running script: python3 src/metering_processor.py"
-exec python3 "src/metering_processor.py"
+# Start cron service
+echo "Starting cron service..."
+service cron start
+
+# Run the script once immediately (optional) - don't exit if it fails
+echo "Running initial execution: python3 src/metering_processor.py"
+python3 "src/metering_processor.py" || echo "Initial execution failed, but cron job will continue to retry every 5 minutes..."
+
+# Keep the container running and tail the cron log
+echo "Cron job scheduled to run every 5 minutes. Tailing log file..."
+tail -f /var/log/cron.log
