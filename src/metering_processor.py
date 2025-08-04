@@ -4,7 +4,6 @@ S3 to Clazar Usage Metering Script
 
 This script pulls usage metering data from S3 and uploads aggregated data to Clazar.
 It processes data monthly and ensures only one metering record per month per buyer-dimension combo.
-Can run as a cron job on the first day of every month at 00:10 UTC.
 """
 
 import json
@@ -457,7 +456,7 @@ class MeteringProcessor:
         self.save_state(state)
 
     def get_next_month_to_process(self, service_name: str, environment_type: str, 
-                                 plan_id: str) -> Optional[Tuple[int, int]]:
+                                 plan_id: str, default_start_month: Optional[Tuple[int, int]] = None) -> Optional[Tuple[int, int]]:
         """
         Get the next month that needs to be processed.
         
@@ -474,10 +473,12 @@ class MeteringProcessor:
         current_month = (current_date.year, current_date.month)
         
         if last_processed is None:
-            # If never processed, start from 2 months ago to avoid processing incomplete current month
-            target_date = current_date.replace(day=1) - timedelta(days=32)  # Go back at least one month
-            target_date = target_date.replace(day=1)  # First day of that month
-            start_month = (target_date.year, target_date.month)
+            # If never processed, start from the default start month
+            if default_start_month:
+                start_month = default_start_month
+            else:
+                # Default to the last complete month
+                start_month = (current_date.year, current_date.month - 1) if current_date.month > 1 else (current_date.year - 1, 12)
             self.logger.info(f"No previous processing found, starting from {start_month[0]}-{start_month[1]:02d}")
             return start_month
         
@@ -1048,7 +1049,7 @@ class MeteringProcessor:
         return retry_success and send_success
 
     def process_pending_months(self, service_name: str, environment_type: str, 
-                              plan_id: str, max_retries: int = 5) -> bool:
+                              plan_id: str, max_retries: int = 5, start_month: tuple = (2025, 1)) -> bool:
         """
         Process all pending months for a specific service configuration.
         
@@ -1067,7 +1068,8 @@ class MeteringProcessor:
         all_successful = True
         
         while True:
-            next_month = self.get_next_month_to_process(service_name, environment_type, plan_id)
+            next_month = self.get_next_month_to_process(service_name, environment_type, plan_id, 
+                                                        default_start_month=start_month)
             
             if next_month is None:
                 self.logger.info("No more months to process, caught up!")
@@ -1090,81 +1092,8 @@ class MeteringProcessor:
         self.logger.info(f"Processed {processed_count} months. Success: {all_successful}")
         return all_successful
 
-
-def is_first_day_of_month() -> bool:
-    """
-    Check if today is the first day of the month.
-    
-    Returns:
-        True if today is the first day of the month, False otherwise
-    """
-    now = datetime.now(timezone.utc)
-    return now.day == 1
-
-
-def wait_for_scheduled_time():
-    """
-    Wait until 00:10 UTC if running as a cron job and it's the first day of the month.
-    """
-    now = datetime.now(timezone.utc)
-    target_time = now.replace(hour=0, minute=10, second=0, microsecond=0)
-    
-    # If it's past 00:10, target the next day's 00:10
-    if now >= target_time:
-        target_time += timedelta(days=1)
-    
-    wait_seconds = (target_time - now).total_seconds()
-    
-    if wait_seconds > 0 and wait_seconds < 86400:  # Less than 24 hours
-        print(f"Waiting until {target_time.strftime('%Y-%m-%d %H:%M:%S UTC')} to run (waiting {wait_seconds:.0f} seconds)")
-        time.sleep(wait_seconds)
-
-
-def run_as_cron_job():
-    """
-    Run the script continuously as a cron job, executing on the first day of every month at 00:10 UTC.
-    """
-    print("Starting cron job mode - will run on the first day of every month at 00:10 UTC")
-    
-    while True:
-        try:
-            now = datetime.now(timezone.utc)
-            
-            # Check if it's the first day of the month and around 00:10 UTC
-            if is_first_day_of_month():
-                current_time = now.time()
-                target_time = now.replace(hour=0, minute=10, second=0, microsecond=0).time()
-                
-                # Run if it's between 00:10 and 00:20 UTC (10-minute window)
-                if target_time <= current_time <= now.replace(hour=0, minute=20, second=0, microsecond=0).time():
-                    print(f"Executing scheduled job at {now.strftime('%Y-%m-%d %H:%M:%S UTC')}")
-                    main_processing()
-                    
-                    # Sleep until the next day to avoid running multiple times
-                    sleep_until_next_day = (86400 - (now.hour * 3600 + now.minute * 60 + now.second))
-                    print(f"Job completed. Sleeping for {sleep_until_next_day} seconds until next day")
-                    time.sleep(sleep_until_next_day)
-                else:
-                    # Wait until 00:10 UTC
-                    wait_for_scheduled_time()
-            else:
-                # Sleep until the next day
-                next_day = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
-                sleep_seconds = (next_day - now).total_seconds()
-                print(f"Not the first day of the month. Sleeping for {sleep_seconds:.0f} seconds until next day")
-                time.sleep(sleep_seconds)
-                
-        except KeyboardInterrupt:
-            print("Cron job interrupted by user")
-            break
-        except Exception as e:
-            print(f"Error in cron job: {e}")
-            # Sleep for an hour before retrying
-            time.sleep(3600)
-
-
 def main_processing():
-    """Main processing function that can be called from cron job or directly."""
+    """Main processing function to run the metering processor."""
     
     # AWS Configuration
     AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
@@ -1183,6 +1112,7 @@ def main_processing():
     PLAN_ID = os.getenv('PLAN_ID', 'pt-HJSv20iWX0')
     STATE_FILE_PATH = os.getenv('STATE_FILE_PATH', 'metering_state.json')
     MAX_RETRIES = int(os.getenv('MAX_RETRIES', '5'))
+    START_MONTH = os.getenv('START_MONTH', '2025-01')
     DRY_RUN = os.getenv('DRY_RUN', 'false').lower() in ('true', '1', 'yes')
     
     # Validate required environment variables
@@ -1235,8 +1165,17 @@ def main_processing():
         )
         
         # Process all pending months
+        if START_MONTH:
+            try:
+                start_year, start_month = map(int, START_MONTH.split('-'))
+            except ValueError:
+                print(f"Invalid START_MONTH format: {START_MONTH}. Expected format: YYYY-MM")
+                sys.exit(1)
+        else:
+            start_year, start_month = 2025, 1  # Default start month if not set
+
         success = processor.process_pending_months(
-            SERVICE_NAME, ENVIRONMENT_TYPE, PLAN_ID, MAX_RETRIES
+            SERVICE_NAME, ENVIRONMENT_TYPE, PLAN_ID, MAX_RETRIES, (start_year, start_month)
         )
         
         if success:
@@ -1258,7 +1197,9 @@ def main_processing():
 def main():
     """Main function to run the metering processor."""
     
-    run_as_cron_job()
+    success = main_processing()
+    if not success:
+        sys.exit(1)  # Exit with error code if processing failed
 
 
 if __name__ == "__main__":

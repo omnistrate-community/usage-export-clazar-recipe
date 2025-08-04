@@ -27,6 +27,7 @@ services:
       AWS_SECRET_ACCESS_KEY: $var.awsSecretAccessKey
       AWS_REGION: $var.awsRegion
       STATE_FILE_PATH: $var.stateFilePath
+      START_MONTH: $var.startMonth
       DRY_RUN: $var.dryRun
     x-omnistrate-compute:
       replicaCount: 1
@@ -121,6 +122,14 @@ services:
         required: false
         export: true
         defaultValue: "metering_state.json"
+      - key: startMonth
+        description: "Start Month for processing (format: YYYY-MM)"
+        name: Start Month
+        type: String
+        modifiable: true
+        required: false
+        export: true
+        defaultValue: "2025-06"
       - key: dryRun
         description: Dry Run Mode (true/false)
         name: Dry Run Mode
