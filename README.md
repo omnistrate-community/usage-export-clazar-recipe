@@ -29,13 +29,22 @@ Your AWS credentials need the following S3 permissions:
 Note: `s3:PutObject` permission is required for storing the state file in S3.
 
 ## Deploy in Omnistrate
-To deploy the Clazar Exporter in Omnistrate, run the following command in your terminal. Make sure you have the Omnistrate CLI installed and configured before running the command.
+
+To deploy the Clazar Exporter in Omnistrate, follow these steps:
+
+1. Clone the repository and navigate to the directory:
+   ```bash
+   git clone https://github.com/omnistrate-community/usage-export-clazar-recipe.git
+   cd usage-export-clazar-recipe
+   ```
+
+2. Build the exporter into a service using the Omnistrate CLI. Ensure you have the Omnistrate CLI (`omctl`) installed and logged in. Make sure you have docker installed and running.
 
 ```bash
 omctl build-from-repo --product-name "Clazar Exporter"
 ```
 
-To run the job, you can create a resource instance in Omnistrate with below parameters:
+3. To run the job, create a resource instance in Omnistrate with below parameters:
 
 - `AWS_ACCESS_KEY_ID`: AWS access key ID
 - `AWS_SECRET_ACCESS_KEY`: AWS secret access key
@@ -50,24 +59,17 @@ To run the job, you can create a resource instance in Omnistrate with below para
 - `STATE_FILE_PATH`: Path to state file in S3 (default: "metering_state.json")
 - `START_MONTH`: Start month for processing (format: YYYY-MM, default: "2025-06")
 - `DRY_RUN`: Set to "true" to run without sending data to Clazar (default: "false")
+- `DIMENSION1_NAME`, `DIMENSION1_FORMULA`: First custom dimension name and formula. Refer to the [Custom Dimensions Configuration](#custom-dimensions-configuration) section for details.
+- `DIMENSION2_NAME`, `DIMENSION2_FORMULA` (Optional): Second custom dimension name and formula (left empty if not needed)
+- `DIMENSION3_NAME`, `DIMENSION3_FORMULA` (Optional): Third custom dimension name and formula (left empty if not needed)
 
-### Custom Dimension Configuration
-
-The script supports defining custom dimensions with calculated values. You can define up to 3 custom dimensions using the following environment variables:
-
-- `DIMENSION1_NAME` & `DIMENSION1_FORMULA`: First custom dimension name and formula, required
-- `DIMENSION2_NAME` & `DIMENSION2_FORMULA`: Second custom dimension name and formula, if needed
-- `DIMENSION3_NAME` & `DIMENSION3_FORMULA`: Third custom dimension name and formula, if needed
+## Custom Dimensions
 
 **Example Usage:**
 - `DIMENSION1_NAME`: "pod_hours"
 - `DIMENSION1_FORMULA`: "cpu_core_hours / 2"
-- `DIMENSION2_NAME`: ""
-- `DIMENSION2_FORMULA`: ""
-- `DIMENSION3_NAME`: ""
-- `DIMENSION3_FORMULA`: ""
 
-This would create a custom dimension called "pod_hours" calculated as half of the CPU core hours (assuming 2-core machines). Second and third dimensions are left empty in this case to indicate no additional custom dimensions are defined.
+This would create a custom dimension called "pod_hours" calculated as half of the CPU core hours (assuming 2-core machines).
 
 **Available Variables in Formulas:**
 - `memory_byte_hours`: Memory usage in byte-hours
