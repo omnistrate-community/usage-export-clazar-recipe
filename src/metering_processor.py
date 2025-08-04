@@ -11,9 +11,8 @@ import logging
 import os
 import sys
 import time
-import re
 from collections import defaultdict
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Tuple
 import calendar
 
@@ -1102,49 +1101,43 @@ class MeteringProcessor:
         # Return True only if both retry and send operations were successful
         return retry_success and send_success
 
-    def process_pending_months(self, service_name: str, environment_type: str, 
-                              plan_id: str, max_retries: int = 5, start_month: tuple = (2025, 1)) -> bool:
+    def process_next_month(self, service_name: str, environment_type: str, 
+                          plan_id: str, max_retries: int = 5, start_month: tuple = (2025, 1)) -> bool:
         """
-        Process all pending months for a specific service configuration.
+        Process the next pending month for a specific service configuration.
         
         Args:
             service_name: Name of the service
             environment_type: Environment type
             plan_id: Plan ID
             max_retries: Maximum retry attempts for failed contracts
+            start_month: Default start month if no previous processing history
             
         Returns:
-            True if all processing was successful, False otherwise
+            True if processing was successful, False otherwise
         """
         self.logger.info(f"Starting processing for {service_name}/{environment_type}/{plan_id}")
         
-        processed_count = 0
-        all_successful = True
+        next_month = self.get_next_month_to_process(service_name, environment_type, plan_id, 
+                                                    default_start_month=start_month)
         
-        while True:
-            next_month = self.get_next_month_to_process(service_name, environment_type, plan_id, 
-                                                        default_start_month=start_month)
-            
-            if next_month is None:
-                self.logger.info("No more months to process, caught up!")
-                break
-            
-            year, month = next_month
-            self.logger.info(f"Processing month {processed_count + 1}: {year}-{month:02d}")
-            
-            success = self.process_month(service_name, environment_type, plan_id, year, month, max_retries)
-            
-            if success:
-                # Update state only if processing was successful
-                self.update_last_processed_month(service_name, environment_type, plan_id, year, month)
-                processed_count += 1
-            else:
-                self.logger.error(f"Failed to process month {year}-{month:02d}, stopping")
-                all_successful = False
-                break
+        if next_month is None:
+            self.logger.info("No more months to process, caught up!")
+            return True
         
-        self.logger.info(f"Processed {processed_count} months. Success: {all_successful}")
-        return all_successful
+        year, month = next_month
+        self.logger.info(f"Processing month: {year}-{month:02d}")
+        
+        success = self.process_month(service_name, environment_type, plan_id, year, month, max_retries)
+        
+        if success:
+            # Update state only if processing was successful
+            self.update_last_processed_month(service_name, environment_type, plan_id, year, month)
+            self.logger.info(f"Successfully processed month {year}-{month:02d}")
+        else:
+            self.logger.error(f"Failed to process month {year}-{month:02d}")
+        
+        return success
 
 def main_processing():
     """Main processing function to run the metering processor."""
@@ -1244,7 +1237,7 @@ def main_processing():
             custom_dimensions=custom_dimensions
         )
         
-        # Process all pending months
+        # Process next month
         if START_MONTH:
             try:
                 start_year, start_month = map(int, START_MONTH.split('-'))
@@ -1254,7 +1247,7 @@ def main_processing():
         else:
             start_year, start_month = 2025, 1  # Default start month if not set
 
-        success = processor.process_pending_months(
+        success = processor.process_next_month(
             SERVICE_NAME, ENVIRONMENT_TYPE, PLAN_ID, MAX_RETRIES, (start_year, start_month)
         )
         
