@@ -471,6 +471,8 @@ class MeteringProcessor:
             else:
                 year = last_processed_to.year
                 month = last_processed_to.month
+            
+            return (year, month)
 
         except (KeyError, ValueError) as e:
             self.logger.error(f"Error parsing last processed month for {service_key}: {e}")
@@ -499,13 +501,13 @@ class MeteringProcessor:
         if last_processed is None:
             # If never processed, start from the default start month
             next_year, next_month = default_start_month
-        
-        # Calculate next month
-        year, month = last_processed
-        if month == 12:
-            next_year, next_month = year + 1, 1
         else:
-            next_year, next_month = year, month + 1
+            # Calculate next month
+            year, month = last_processed
+            if month == 12:
+                next_year, next_month = year + 1, 1
+            else:
+                next_year, next_month = year, month + 1
         
         # Check if next month is beyond the latest month with complete usage data
         latest_year, latest_month = latest_month_with_complete_usage_data
