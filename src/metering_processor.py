@@ -64,64 +64,6 @@ class MeteringProcessor:
         # Log AWS configuration (without exposing sensitive data)
         self.logger.info(f"Using provided AWS credentials for region: {aws_region}")
         
-        # Load custom dimensions configuration
-        self.custom_dimensions = self._load_custom_dimensions()
-        
-    def _load_custom_dimensions(self) -> Dict[str, str]:
-        """
-        Load custom dimension configurations from environment variables.
-        
-        Environment variables should be in format:
-        DIMENSION_<name>=<formula>
-        
-        For example:
-        DIMENSION_pod_hours=cpu_core_hours / 2
-        DIMENSION_memory_gb_hours=memory_byte_hours / 1073741824
-        
-        Returns:
-            Dictionary mapping new dimension names to their formulas
-        """
-        custom_dimensions = {}
-        
-        for key, value in os.environ.items():
-            if key.startswith('DIMENSION_'):
-                dimension_name = key[10:].lower()  # Remove 'DIMENSION_' prefix
-                formula = value.strip()
-                custom_dimensions[dimension_name] = formula
-                self.logger.info(f"Loaded custom dimension: {dimension_name} = {formula}")
-        
-        return custom_dimensions
-    
-    def _evaluate_dimension_formula(self, formula: str, base_dimensions: Dict[str, float]) -> float:
-        """
-        Evaluate a dimension formula using base dimension values.
-        
-        Args:
-            formula: The formula string (e.g., "cpu_core_hours / 2")
-            base_dimensions: Dictionary of base dimension values
-            
-        Returns:
-            Calculated value for the custom dimension
-        """
-        try:
-            # Create a safe evaluation context with only math operations and base dimensions
-            safe_dict = {
-                '__builtins__': {},
-                'abs': abs, 'round': round, 'min': min, 'max': max,
-                'int': int, 'float': float,
-            }
-            safe_dict.update(base_dimensions)
-            
-            # Basic validation to prevent code injection
-            if any(dangerous in formula for dangerous in ['import', '__', 'exec', 'eval', 'open', 'file']):
-                raise ValueError(f"Unsafe formula detected: {formula}")
-            
-            result = eval(formula, safe_dict)
-            return float(result)
-        except Exception as e:
-            self.logger.error(f"Error evaluating formula '{formula}' with dimensions {base_dimensions}: {e}")
-            return 0.0
-        
     def load_state(self) -> Dict:
         """
         Load the processing state from the S3 state file.
@@ -650,7 +592,6 @@ class MeteringProcessor:
     def aggregate_usage_data(self, usage_records: List[Dict]) -> Dict[Tuple[str, str], float]:
         """
         Aggregate usage data by externalPayerId (contract_id) and dimension for monthly data.
-        Also calculates custom dimensions based on environment variable configurations.
         
         Args:
             usage_records: List of usage records
@@ -671,40 +612,6 @@ class MeteringProcessor:
             
             key = (external_payer_id, dimension)
             aggregated_data[key] += int(value)
-        
-        # Calculate custom dimensions
-        if self.custom_dimensions:
-            self.logger.info(f"Calculating {len(self.custom_dimensions)} custom dimensions")
-            
-            # Group by external_payer_id to calculate custom dimensions per contract
-            contracts = {}
-            for (external_payer_id, dimension), value in aggregated_data.items():
-                if external_payer_id not in contracts:
-                    contracts[external_payer_id] = {}
-                contracts[external_payer_id][dimension] = value
-            
-            # Calculate custom dimensions for each contract
-            for external_payer_id, base_dimensions in contracts.items():
-                for custom_dim_name, formula in self.custom_dimensions.items():
-                    try:
-                        # Check if all required dimensions are available for this contract
-                        # Parse the formula to find required dimension names
-                        import re
-                        dimension_names = re.findall(r'\b[a-z_]+\b', formula)
-                        required_dims = [dim for dim in dimension_names if dim not in ['abs', 'round', 'min', 'max', 'int', 'float']]
-                        
-                        # Only calculate if all required dimensions are available
-                        if all(dim in base_dimensions for dim in required_dims):
-                            custom_value = self._evaluate_dimension_formula(formula, base_dimensions)
-                            if custom_value > 0:  # Only add positive values
-                                key = (external_payer_id, custom_dim_name)
-                                aggregated_data[key] = custom_value
-                                self.logger.debug(f"Calculated {custom_dim_name}={custom_value} for contract {external_payer_id}")
-                        else:
-                            missing_dims = [dim for dim in required_dims if dim not in base_dimensions]
-                            self.logger.debug(f"Skipping {custom_dim_name} for contract {external_payer_id}: missing dimensions {missing_dims}")
-                    except Exception as e:
-                        self.logger.error(f"Failed to calculate custom dimension {custom_dim_name} for contract {external_payer_id}: {e}")
         
         self.logger.info(f"Aggregated {len(usage_records)} records into {len(aggregated_data)} entries")
         return dict(aggregated_data)

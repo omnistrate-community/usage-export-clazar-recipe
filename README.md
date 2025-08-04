@@ -30,39 +30,10 @@ Note: `s3:PutObject` permission is required for storing the state file in S3.
 
 ## Configuration
 
-### Customize Clazar Dimensions
-This script supports both default and custom dimensions:
-
 **Default dimensions:**
 - `memory_byte_hours`
 - `storage_allocated_byte_hours`
 - `cpu_core_hours`
-
-**Custom dimensions:**
-You can define custom dimensions using environment variables with the format `DIMENSION_<name>=<formula>`.
-
-Examples:
-```bash
-# Define a custom pod_hours dimension calculated from cpu_core_hours
-DIMENSION_pod_hours="cpu_core_hours / 2"
-
-# Define memory in GB hours instead of byte hours
-DIMENSION_memory_gb_hours="memory_byte_hours / 1073741824"
-
-# Define storage in TB hours
-DIMENSION_storage_tb_hours="storage_allocated_byte_hours / 1099511627776"
-
-# Complex calculation combining multiple dimensions
-DIMENSION_compute_units="(cpu_core_hours * 2) + (memory_byte_hours / 1073741824)"
-```
-
-**Formula syntax:**
-- Use basic arithmetic operators: `+`, `-`, `*`, `/`, `(`, `)`
-- Reference base dimensions by their exact names (case-sensitive)
-- Use built-in functions: `abs()`, `round()`, `min()`, `max()`, `int()`, `float()`
-- Formulas are evaluated safely with no access to system functions
-
-Note: The `quantity` field in the payload should always be a string of positive integers, as Clazar expects this format. Custom dimensions are automatically converted to integers before sending.
 
 ## Job Behavior
 
@@ -110,7 +81,6 @@ Please note that the script does not handle subscription cancellations. If a sub
 - `STATE_FILE_PATH`: Path to state file in S3 (default: "metering_state.json")
 - `START_MONTH`: Start month for processing (format: YYYY-MM, default: "2025-06")
 - `DRY_RUN`: Set to "true" to run without sending data to Clazar (default: "false")
-- `DIMENSION_<name>`: Custom dimension formulas (see Custom Dimensions section)
 
 ## Deploy in Omnistrate
 To deploy the Clazar Exporter in Omnistrate, run the following command in your terminal. Make sure you have the Omnistrate CLI installed and configured before running the command.
@@ -166,10 +136,6 @@ PLAN_ID=pt-HJSv20iWX0
 MAX_RETRIES=5
 CRON_MODE=true
 DRY_RUN=false
-
-# Custom Dimensions (optional)
-DIMENSION_pod_hours=cpu_core_hours / 2
-DIMENSION_memory_gb_hours=memory_byte_hours / 1073741824
 ```
 
 ## Tracking State
@@ -224,21 +190,18 @@ The script provides detailed logging. Monitor the logs for:
 - Any errors or warnings
 - AWS authentication method being used
 - State updates
-- Custom dimension calculations
 - Retry attempts and backoff delays
 - Cron job scheduling information
 
 Example output:
 ```
 2025-07-25 20:15:32,604 - INFO - Using provided AWS credentials for region: us-east-1
-2025-07-25 20:15:32,604 - INFO - Loaded custom dimension: pod_hours = cpu_core_hours / 2
 2025-07-25 20:15:32,604 - INFO - Processing month 1/12: 2025-06
 2025-07-25 20:15:32,604 - INFO - Retrying 2 error contracts for 2025-06
 2025-07-25 20:15:32,604 - INFO - Retrying contract ae641bd1-edf8-4038-bfed-d2ff556c729e (retry 2/5) after 4s delay
 2025-07-25 20:15:36,604 - INFO - Successfully retried contract ae641bd1-edf8-4038-bfed-d2ff556c729e on attempt 2
 2025-07-25 20:15:32,604 - INFO - Processing month: 2025-06 for Postgres/PROD/pt-HJSv20iWX0
 2025-07-25 20:15:32,662 - INFO - Found 744 subscription files in omnistrate-metering/Postgres/PROD/pt-HJSv20iWX0/2025/06/
-2025-07-25 20:15:32,735 - INFO - Calculating 1 custom dimensions
 2025-07-25 20:15:32,735 - INFO - Aggregated 2232 records into 12 entries
 2025-07-25 20:15:32,736 - INFO - Filtered from 12 to 6 unprocessed contract records
 2025-07-25 20:15:32,736 - INFO - Sending 3 metering records to Clazar for contract ae641bd1-edf8-4038-bfed-d2ff556c729e
