@@ -55,9 +55,9 @@ To run the job, you can create a resource instance in Omnistrate with below para
 
 The script supports defining custom dimensions with calculated values. You can define up to 3 custom dimensions using the following environment variables:
 
-- `DIMENSION1_NAME` & `DIMENSION1_FORMULA`: First custom dimension name and formula
-- `DIMENSION2_NAME` & `DIMENSION2_FORMULA`: Second custom dimension name and formula  
-- `DIMENSION3_NAME` & `DIMENSION3_FORMULA`: Third custom dimension name and formula
+- `DIMENSION1_NAME` & `DIMENSION1_FORMULA`: First custom dimension name and formula, required
+- `DIMENSION2_NAME` & `DIMENSION2_FORMULA`: Second custom dimension name and formula, if needed
+- `DIMENSION3_NAME` & `DIMENSION3_FORMULA`: Third custom dimension name and formula, if needed
 
 **Example Usage:**
 - `DIMENSION1_NAME`: "pod_hours"
