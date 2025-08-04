@@ -455,6 +455,83 @@ class MeteringProcessor:
 
         self.save_state(state)
 
+    def load_usage_data_state(self) -> Dict:
+        """
+        Load the usage data state from the S3 state file.
+
+        Returns:
+            Dictionary containing the state information
+        """
+        try:
+            response = self.s3_client.get_object(Bucket=self.bucket_name, Key="omnistrate-metering/last_success_export.json")
+            content = response['Body'].read().decode('utf-8')
+            state = json.loads(content)
+            self.logger.info(f"Loaded state from S3: s3://{self.bucket_name}/omnistrate-metering/last_success_export.json")
+            return state
+        except ClientError as e:
+            if e.response['Error']['Code'] == 'NoSuchKey':
+                self.logger.error("omnistrate-metering/last_success_export.json file not found in S3")
+                return {}
+            else:
+                self.logger.error(f"Error loading omnistrate-metering/last_success_export.json file from S3: {e}")
+                return {}
+        except (json.JSONDecodeError, IOError) as e:
+            self.logger.error(f"Error parsing omnistrate-metering/last_success_export.json file: {e}")
+            return {}
+
+    def get_latest_month_with_complete_usage_data(self, service_name: str, environment_type: str, 
+                                plan_id: str) -> Optional[Tuple[int, int]]:
+        """
+        Get the latest month for which complete usage data is available.
+        
+        Args:
+            service_name: Name of the service
+            environment_type: Environment type
+            plan_id: Plan ID
+            
+        Returns:
+            Tuple of (year, month) for last processed month, or None if never processed
+        """
+        state = self.load_usage_data_state()
+    
+        if not state:
+            return None
+
+        service_key = self.get_service_key(service_name, environment_type, plan_id)
+        
+        if service_key not in state:
+            return None
+        
+        try:
+            last_processed_str = state[service_key].get('last_processed_to')
+            if not last_processed_str:
+                return None
+
+            # Parse the YYYY-MM-DDTHH:MM:SSZ format
+            last_processed_to = datetime.strptime(last_processed_str, '%Y-%m-%dT%H:%M:%SZ')
+            
+            # Get last day of the month
+            year = last_processed_to.year
+            month = last_processed_to.month
+            last_day_of_the_month = calendar.monthrange(year, month)[1]
+
+            # Get the last complete month
+            if last_processed_to.date().day != last_day_of_the_month or last_processed_to.minute != 59:
+                # If not at the end of the month, adjust to the last complete month
+                if last_processed_to.month == 1:
+                    year = last_processed_to.year - 1
+                    month = 12
+                else:
+                    year = last_processed_to.year
+                    month = last_processed_to.month - 1
+            else:
+                year = last_processed_to.year
+                month = last_processed_to.month
+
+        except (KeyError, ValueError) as e:
+            self.logger.error(f"Error parsing last processed month for {service_key}: {e}")
+            return None
+
     def get_next_month_to_process(self, service_name: str, environment_type: str, 
                                  plan_id: str, default_start_month: Optional[Tuple[int, int]] = None) -> Optional[Tuple[int, int]]:
         """
@@ -464,23 +541,20 @@ class MeteringProcessor:
             service_name: Name of the service
             environment_type: Environment type
             plan_id: Plan ID
+            default_start_month: Optional default start month (as tuple of (year, month))
             
         Returns:
             Tuple of (year, month) for next month to process, or None if caught up
         """
         last_processed = self.get_last_processed_month(service_name, environment_type, plan_id)
-        current_date = datetime.now(timezone.utc)
-        current_month = (current_date.year, current_date.month)
+        latest_month_with_complete_usage_data = self.get_latest_month_with_complete_usage_data(service_name, environment_type, plan_id)
+        if latest_month_with_complete_usage_data is None:
+            self.logger.error(f"Failed to retrieve latest month with complete usage data")
+            return None
         
         if last_processed is None:
             # If never processed, start from the default start month
-            if default_start_month:
-                start_month = default_start_month
-            else:
-                # Default to the last complete month
-                start_month = (current_date.year, current_date.month - 1) if current_date.month > 1 else (current_date.year - 1, 12)
-            self.logger.info(f"No previous processing found, starting from {start_month[0]}-{start_month[1]:02d}")
-            return start_month
+            next_year, next_month = default_start_month
         
         # Calculate next month
         year, month = last_processed
@@ -489,9 +563,10 @@ class MeteringProcessor:
         else:
             next_year, next_month = year, month + 1
         
-        # Don't process the current month as it might be incomplete
-        if (next_year, next_month) >= current_month:
-            self.logger.info("Caught up with current month, no processing needed")
+        # Check if next month is beyond the latest month with complete usage data
+        latest_year, latest_month = latest_month_with_complete_usage_data
+        if (next_year > latest_year) or (next_year == latest_year and next_month > latest_month):
+            self.logger.info(f"Already caught up to the latest month with complete usage data: {latest_year}-{latest_month:02d}")
             return None
         
         return (next_year, next_month)

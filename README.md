@@ -108,14 +108,12 @@ Please note that the script does not handle subscription cancellations. If a sub
 
 ### Optional
 - `STATE_FILE_PATH`: Path to state file in S3 (default: "metering_state.json")
-- `MAX_MONTHS_PER_RUN`: Maximum months to process per run (default: 12)
-- `MAX_RETRIES`: Maximum retry attempts for failed contracts (default: 5)
+- `START_MONTH`: Start month for processing (format: YYYY-MM, default: "2025-06")
 - `DRY_RUN`: Set to "true" to run without sending data to Clazar (default: "false")
-- `CRON_MODE`: Set to "true" to run as cron job (default: "false")
 - `DIMENSION_<name>`: Custom dimension formulas (see Custom Dimensions section)
 
-## Run it as a Job in Omnistrate
-To set up a job in Omnistrate, run the following command in your terminal. Make sure you have the Omnistrate CLI installed and configured before running the command.
+## Deploy in Omnistrate
+To deploy the Clazar Exporter in Omnistrate, run the following command in your terminal. Make sure you have the Omnistrate CLI installed and configured before running the command.
 
 ```bash
 omctl build-from-repo --product-name "Clazar Exporter"
