@@ -12,15 +12,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy source code
 COPY src/ /app/src/
 
-# Copy the crontab file
-COPY crontab /app/crontab
-
 # Copy the entrypoint script
 COPY entrypoint.sh /app/
 RUN chmod +x /app/entrypoint.sh
-
-# Install the crontab
-RUN crontab /app/crontab
 
 # Create log file for cron
 RUN touch /var/log/cron.log
