@@ -1,6 +1,0 @@
-# Run metering processor every 5 minutes (with lock to prevent overlapping)
-*/15 * * * * cd /app && set -a && source /app/cron.env && set +a &&flock -n /tmp/metering_processor.lock /usr/local/bin/python3 src/metering_processor.py >> /var/log/cron.log 2>&1
-
-# * * * * * echo "Triggering metering processor..." >> /var/log/cron.log 2>&1
-
-# Empty line required at end of crontab
