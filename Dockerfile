@@ -22,7 +22,4 @@ RUN touch /var/log/cron.log
 # Set the entrypoint
 ENTRYPOINT ["/app/entrypoint.sh"]
 
-# Expose health check or log viewing (optional)
-# EXPOSE 8080
-
 LABEL org.opencontainers.image.source="https://github.com/omnistrate-community/usage-export-clazar-recipe"
