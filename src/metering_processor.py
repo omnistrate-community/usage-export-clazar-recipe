@@ -650,6 +650,7 @@ class MeteringProcessor:
                         'memory_byte_hours': dimensions.get('memory_byte_hours', 0),
                         'storage_allocated_byte_hours': dimensions.get('storage_allocated_byte_hours', 0),
                         'cpu_core_hours': dimensions.get('cpu_core_hours', 0),
+                        'replica_hours': dimensions.get('replica_hours', 0),
                         # Add mathematical functions for safety
                         '__builtins__': {
                             'abs': abs, 'min': min, 'max': max, 'round': round,

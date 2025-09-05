@@ -62,7 +62,7 @@ omctl build-from-repo --product-name "Clazar Exporter"
 - `STATE_FILE_PATH`: Path to state file in S3 (default: "metering_state.json")
 - `START_MONTH`: Start month for processing (format: YYYY-MM, default: "2025-06")
 - `DRY_RUN`: Set to "true" to run without sending data to Clazar (default: "false")
-- `DIMENSION1_NAME`, `DIMENSION1_FORMULA`: First custom dimension name and formula. Refer to the [Custom Dimensions Configuration](#custom-dimensions-configuration) section for details.
+- `DIMENSION1_NAME`, `DIMENSION1_FORMULA`: First custom dimension name and formula. Refer to the [Custom Dimensions](#custom-dimensions) section for details.
 - `DIMENSION2_NAME`, `DIMENSION2_FORMULA` (Optional): Second custom dimension name and formula (left empty if not needed)
 - `DIMENSION3_NAME`, `DIMENSION3_FORMULA` (Optional): Third custom dimension name and formula (left empty if not needed)
 
@@ -78,6 +78,7 @@ This would create a custom dimension called "pod_hours" calculated as half of th
 - `memory_byte_hours`: Memory usage in byte-hours
 - `storage_allocated_byte_hours`: Storage usage in byte-hours
 - `cpu_core_hours`: CPU core usage in core-hours
+- `replica_hours`: Replica usage in replica-hours
 
 **Formula Rules:**
 - Both name and formula must be provided together for each dimension
