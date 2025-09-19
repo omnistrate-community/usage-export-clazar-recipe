@@ -1,8 +1,8 @@
 version: '3.8'
 
-x-omnistrate-integrations:
-  - omnistrateLogging:
-  - omnistrateMetrics:
+x-customer-integrations:
+  logs: 
+  metrics: 
 
 x-omnistrate-service-plan:
   name: 'clazar-exporter'
