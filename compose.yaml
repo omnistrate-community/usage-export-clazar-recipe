@@ -69,14 +69,14 @@ services:
       - key: clazarClientId
         description: Clazar Client ID
         name: Clazar Client ID
-        type: Secret
+        type: Password
         modifiable: true
         required: true
         export: false
       - key: clazarClientSecret
         description: Clazar Client Secret
         name: Clazar Client Secret
-        type: Secret
+        type: Password
         modifiable: true
         required: true
         export: false
