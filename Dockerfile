@@ -21,5 +21,3 @@ RUN touch /var/log/cron.log
 
 # Set the entrypoint
 ENTRYPOINT ["/app/entrypoint.sh"]
-
-LABEL org.opencontainers.image.source="https://github.com/omnistrate-community/usage-export-clazar-recipe"
