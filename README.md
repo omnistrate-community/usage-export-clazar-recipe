@@ -44,7 +44,7 @@ LABEL org.opencontainers.image.source="https://github.com/omnistrate-community/u
 3. Build the exporter into a service using the Omnistrate CLI. Ensure you have the Omnistrate CLI (`omctl`) installed and logged in. Make sure you have docker installed and running.
 
 ```bash
-omctl build-from-repo --product-name "Clazar Exporter"
+omctl build-from-repo --product-name "Clazar Exporter" --skip-environment-promotion
 ```
 
 3. To run the job, create a resource instance in Omnistrate with below parameters:
