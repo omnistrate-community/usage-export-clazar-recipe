@@ -62,7 +62,9 @@ omctl build-from-repo --product-name "Clazar Exporter" --skip-environment-promot
 - `STATE_FILE_PATH`: Path to state file in S3 (default: "metering_state.json")
 - `START_MONTH`: Start month for processing (format: YYYY-MM, default: "2025-06")
 - `DRY_RUN`: Set to "true" to run without sending data to Clazar (default: "false")
-- `DIMENSION1_NAME`, `DIMENSION1_FORMULA`: First custom dimension name and formula. Refer to the [Custom Dimensions](#custom-dimensions) section for details.
+- `DIMENSION1_NAME`:  Dimension name. Name of the Dimension configured on Clazar.
+- `DIMENSION1_FORMULA`: Formula of the metric to export, for example `replica_hours`. Refer to the [Custom Dimensions](#custom-dimensions) section for details.
+Optional: additional dimensions and formulas to export to Clazar
 - `DIMENSION2_NAME`, `DIMENSION2_FORMULA` (Optional): Second custom dimension name and formula (left empty if not needed)
 - `DIMENSION3_NAME`, `DIMENSION3_FORMULA` (Optional): Third custom dimension name and formula (left empty if not needed)
 
