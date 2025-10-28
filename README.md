@@ -34,14 +34,7 @@ To deploy the Clazar Exporter in Omnistrate, follow these steps:
 
 1. Fork the repository, clone it, and navigate to the repository directory.
 
-2. Remove the LABEL line from the Dockerfile if it exists, as it is labeling the image to the original repository.
-
-```dockerfile
-# Remove this line if it exists
-LABEL org.opencontainers.image.source="https://github.com/omnistrate-community/usage-export-clazar-recipe"
-```
-
-3. Build the exporter into a service using the Omnistrate CLI. Ensure you have the Omnistrate CLI (`omctl`) installed and logged in. Make sure you have docker installed and running.
+2. Build the exporter into a service using the Omnistrate CLI. Ensure you have the Omnistrate CLI (`omctl`) installed and logged in. Make sure you have docker installed and running.
 
 ```bash
 omctl build-from-repo --product-name "Clazar Exporter" --skip-environment-promotion
