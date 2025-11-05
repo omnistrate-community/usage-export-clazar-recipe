@@ -4,6 +4,13 @@ This exporter automatically pulls usage metering data from S3 and uploads aggreg
 
 ## Prerequisites
 
+### Configure Clazar Contract IDs as External Payer IDs in Omnistrate
+
+To obtain the contract IDs of your buyers, you can use the included `clazar_contracts.sh` script. The instructions to use this script are included in the script file itself.
+
+In Omnistrate UI, navigate to *"FinOps Center > Tenant Pricing -> Modify Tenant Pricing"* and set the `External Payer ID` field to the corresponding Clazar contract ID. When set, this value will be included in the exported metering data under the `externalPayerId` field. This allows the exporter to correctly associate usage data with the appropriate Clazar contracts.
+
+
 ### AWS Permissions
 Your AWS credentials need the following S3 permissions:
 ```json
