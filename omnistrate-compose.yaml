@@ -10,9 +10,7 @@ x-omnistrate-service-plan:
   
 services:
   metering-processor:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/omnistrateio/usage-export-clazar:0.0.1
     privileged: true
     platform: linux/amd64
     environment:
