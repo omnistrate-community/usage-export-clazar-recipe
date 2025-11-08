@@ -20,6 +20,8 @@ import boto3
 import requests
 from botocore.exceptions import ClientError, NoCredentialsError
 
+from config import Config, ConfigurationError
+
 
 class MeteringProcessor:
     def __init__(self, bucket_name: str, state_file_path: str = "metering_state.json", 
@@ -1145,63 +1147,13 @@ class MeteringProcessor:
 def main_processing():
     """Main processing function to run the metering processor."""
     
-    # AWS Configuration
-    AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
-    AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
-    AWS_REGION = os.getenv('AWS_REGION')
-    BUCKET_NAME = os.getenv('S3_BUCKET_NAME', 'omnistrate-usage-metering-export-demo')
-
-    # Clazar Configuration
-    CLAZAR_CLIENT_ID = os.getenv('CLAZAR_CLIENT_ID', '')
-    CLAZAR_CLIENT_SECRET = os.getenv('CLAZAR_CLIENT_SECRET', '')
-    CLAZAR_CLOUD = os.getenv('CLAZAR_CLOUD', 'aws')
-
-    # Metering Processor Configuration
-    SERVICE_NAME = os.getenv('SERVICE_NAME', 'Postgres')
-    ENVIRONMENT_TYPE = os.getenv('ENVIRONMENT_TYPE', 'PROD')
-    PLAN_ID = os.getenv('PLAN_ID', 'pt-HJSv20iWX0')
-    STATE_FILE_PATH = os.getenv('STATE_FILE_PATH', 'metering_state.json')
-    MAX_RETRIES = int(os.getenv('MAX_RETRIES', '5'))
-    START_MONTH = os.getenv('START_MONTH', '2025-01')
-    DRY_RUN = os.getenv('DRY_RUN', 'false').lower() in ('true', '1', 'yes')
-    
-    # Parse custom dimensions from environment variables
-    custom_dimensions = {}
-    for i in range(1, 4):  # Support up to 3 custom dimensions
-        name_key = f'DIMENSION{i}_NAME'
-        formula_key = f'DIMENSION{i}_FORMULA'
-        
-        dimension_name = os.getenv(name_key)
-        dimension_formula = os.getenv(formula_key)
-        
-        if dimension_name and dimension_formula:
-            custom_dimensions[dimension_name] = dimension_formula
-        elif dimension_name or dimension_formula:
-            print(f"Error: Both {name_key} and {formula_key} must be provided together")
-            sys.exit(1)
-    
-    # Validate no duplicate dimension names
-    if len(custom_dimensions) != len(set(custom_dimensions.keys())):
-        print("Error: Duplicate dimension names found in custom dimensions")
-        sys.exit(1)
-    
-    if custom_dimensions:
-        print(f"Custom dimensions configured: {list(custom_dimensions.keys())}")
-        for name, formula in custom_dimensions.items():
-            print(f"  {name}: {formula}")
-    
-    # Validate required environment variables
-    if not all([BUCKET_NAME, SERVICE_NAME, ENVIRONMENT_TYPE, PLAN_ID]):
-        print("Error: Missing required configuration. Please set environment variables:")
-        print("S3_BUCKET_NAME, SERVICE_NAME, ENVIRONMENT_TYPE, PLAN_ID")
-        sys.exit(1)
-    
-    # Validate AWS credentials
-    if not AWS_SECRET_ACCESS_KEY:
-        print("Error: AWS_SECRET_ACCESS_KEY is missing")
-        sys.exit(1)
-    if not AWS_ACCESS_KEY_ID:
-        print("Error: AWS_ACCESS_KEY_ID is missing")
+    # Load and validate configuration
+    try:
+        config = Config()
+        config.validate_all()
+        config.print_summary()
+    except ConfigurationError as e:
+        print(f"Error: {e}")
         sys.exit(1)
     
     try:
@@ -1209,8 +1161,8 @@ def main_processing():
         url = "https://api.clazar.io/authenticate/"
 
         payload = {
-            "client_id": CLAZAR_CLIENT_ID,
-            "client_secret": CLAZAR_CLIENT_SECRET
+            "client_id": config.clazar_client_id,
+            "client_secret": config.clazar_client_secret
         }
         headers = {
             "accept": "application/json",
@@ -1229,29 +1181,23 @@ def main_processing():
 
         # Initialize the processor
         processor = MeteringProcessor(
-            bucket_name=BUCKET_NAME, 
-            state_file_path=STATE_FILE_PATH,
-            dry_run=DRY_RUN, 
+            bucket_name=config.bucket_name, 
+            state_file_path=config.state_file_path,
+            dry_run=config.dry_run, 
             access_token=access_token, 
-            cloud=CLAZAR_CLOUD,
-            aws_access_key_id=AWS_ACCESS_KEY_ID,
-            aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
-            aws_region=AWS_REGION,
-            custom_dimensions=custom_dimensions
+            cloud=config.clazar_cloud,
+            aws_access_key_id=config.aws_access_key_id,
+            aws_secret_access_key=config.aws_secret_access_key,
+            aws_region=config.aws_region,
+            custom_dimensions=config.custom_dimensions
         )
         
         # Process next month
-        if START_MONTH:
-            try:
-                start_year, start_month = map(int, START_MONTH.split('-'))
-            except ValueError:
-                print(f"Invalid START_MONTH format: {START_MONTH}. Expected format: YYYY-MM")
-                sys.exit(1)
-        else:
-            start_year, start_month = 2025, 1  # Default start month if not set
+        start_year, start_month = config.validate_start_month()
 
         success = processor.process_next_month(
-            SERVICE_NAME, ENVIRONMENT_TYPE, PLAN_ID, MAX_RETRIES, (start_year, start_month)
+            config.service_name, config.environment_type, config.plan_id, 
+            config.max_retries, (start_year, start_month)
         )
         
         if success:
