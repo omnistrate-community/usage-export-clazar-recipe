@@ -1,6 +1,6 @@
 DOCKER_PLATFORM=linux/arm64
 
-SERVICE_NAME=usage-exporter-clazar
+SERVICE_NAME="Clazar exporter"
 ENVIRONMENT=DEV
 
 # Load variables from .env if it exists
