@@ -57,14 +57,17 @@ class Config:
             
             dimension_name = os.getenv(name_key)
             dimension_formula = os.getenv(formula_key)
-            
-            if dimension_name and dimension_formula:
-                self.custom_dimensions[dimension_name] = dimension_formula
-            elif dimension_name or dimension_formula:
-                raise ConfigurationError(
-                    f"Both {name_key} and {formula_key} must be provided together"
-                )
-    
+
+            if dimension_name != None and dimension_name.strip() == "":
+                if dimension_name and dimension_formula:
+                    self.custom_dimensions[dimension_name] = dimension_formula
+                elif dimension_name or dimension_formula:
+                    raise ConfigurationError(
+                        f"Both {name_key} and {formula_key} must be provided together"
+                    )
+        if len(self.custom_dimensions) == 0:
+            raise ConfigurationError("At least one custom dimension must be provided")
+
     def validate_aws_credentials(self):
         """
         Validate that required AWS credentials are present.

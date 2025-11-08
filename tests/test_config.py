@@ -161,6 +161,15 @@ class TestConfig(unittest.TestCase):
         self.assertIn('DIMENSION2_NAME', str(context.exception))
         self.assertIn('DIMENSION2_FORMULA', str(context.exception))
 
+    def test_custom_dimensions_empty_raises_error(self):
+        """Test that Config raises an error when no custom dimensions are provided."""
+        # Don't set any DIMENSION*_NAME or DIMENSION*_FORMULA environment variables
+        # This should trigger the check: if len(self.custom_dimensions) == 0
+        
+        with self.assertRaises(ConfigurationError) as context:
+            Config()
+        self.assertIn('At least one custom dimension must be provided', str(context.exception))
+
     def test_validate_aws_credentials_success(self):
         """Test that validate_aws_credentials passes with valid credentials."""
         os.environ['AWS_ACCESS_KEY_ID'] = 'test_key'
