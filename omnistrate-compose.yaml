@@ -7,6 +7,10 @@ x-customer-integrations:
 x-omnistrate-service-plan:
   name: 'clazar-exporter'
   tenancyType: 'OMNISTRATE_DEDICATED_TENANCY'
+  ## TODO : Replace <AWS_ACCOUNT_ID> with your account id and uncomment the hostedDeployment section below
+  # hostedDeployment:
+  #   awsAccountId: "<AWS_ACCOUNT_ID>"
+  #   awsBootstrapRoleAccountArn: arn:aws:iam::<AWS_ACCOUNT_ID>:role/omnistrate-bootstrap-role
   
 services:
   metering-processor:
