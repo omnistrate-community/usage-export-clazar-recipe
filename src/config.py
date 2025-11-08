@@ -51,7 +51,6 @@ class Config:
     def _load_custom_dimensions(self):
         """Load and validate custom dimensions configuration."""
         self.custom_dimensions = {}
-        dimension_names = []
         for i in range(1, 4):  # Support up to 3 custom dimensions
             name_key = f'DIMENSION{i}_NAME'
             formula_key = f'DIMENSION{i}_FORMULA'
@@ -60,11 +59,6 @@ class Config:
             dimension_formula = os.getenv(formula_key)
             
             if dimension_name and dimension_formula:
-                if dimension_name in dimension_names:
-                    raise ConfigurationError(
-                        f"Duplicate dimension name '{dimension_name}' found in custom dimensions"
-                    )
-                dimension_names.append(dimension_name)
                 self.custom_dimensions[dimension_name] = dimension_formula
             elif dimension_name or dimension_formula:
                 raise ConfigurationError(
