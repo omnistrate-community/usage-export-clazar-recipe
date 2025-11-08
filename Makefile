@@ -32,8 +32,8 @@ release:
 
 .PHONY: docker-build
 docker-build:
-	docker buildx build --platform=${DOCKER_PLATFORM} -f ./Dockerfile -t usage-export-clazar:latest . 
+	docker buildx build --platform=${DOCKER_PLATFORM} -f ./Dockerfile -t usage-export-clazar-recipe:latest . 
 
 .PHONY: docker-run
 docker-run: docker-build
-	docker run -p 8080:8080 usage-export-clazar:latest
+	docker run -p 8080:8080 usage-export-clazar-recipe:latest

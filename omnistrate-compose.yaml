@@ -10,7 +10,7 @@ x-omnistrate-service-plan:
   
 services:
   metering-processor:
-    image: ghcr.io/omnistrateio/usage-export-clazar:0.0.1
+    image: ghcr.io/omnistrateio/usage-export-clazar-recipe:0.0.1
     privileged: true
     platform: linux/amd64
     environment:
