@@ -34,11 +34,19 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install pytest-md pytest-emoji
 
       - name: Run unit tests
         timeout-minutes: 10 
         run: |
-          python -m pytest tests/
+          pytest tests/ -v --tb=short --md=report.md --emoji
+        
+      - name: Publish test report
+        if: always()
+        run: |
+          if [ -f report.md ]; then
+            cat report.md >> $GITHUB_STEP_SUMMARY
+          fi
           
   bump-version:
     if: github.event_name != 'pull_request' && github.event_name != 'release'
