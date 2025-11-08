@@ -63,7 +63,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./build/Dockerfile
+          file: ./Dockerfile
           platforms: ${{ env.PR_PLATFORMS }}
           build-args: |
               GIT_USER=api 
@@ -136,7 +136,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./build/Dockerfile
+          file: ./Dockerfile
           platforms: ${{ env.PLATFORMS }}
           build-args: |
               GIT_USER=api 
