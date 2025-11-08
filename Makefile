@@ -34,3 +34,6 @@ release:
 docker-build:
 	docker buildx build --platform=${DOCKER_PLATFORM} -f ./Dockerfile -t ${SERVICE_NAME}:latest . 
 
+.PHONY: docker-run
+docker-run: docker-build
+	docker run -p 8080:8080 ${SERVICE_NAME}:latest
