@@ -43,8 +43,14 @@ To deploy the Clazar Exporter in Omnistrate, follow these steps:
 
 2. Build the exporter into a service using the Omnistrate CLI. Ensure you have the Omnistrate CLI (`omctl`) installed and logged in. Make sure you have docker installed and running.
 
+```
+make release
+```
+
+or 
+
 ```bash
-omctl build-from-repo --product-name "Clazar Exporter" --skip-environment-promotion
+omnistrate-ctl build -f omnistrate-compose.yaml --product-name "Clazar exporter"  --environment DEV --environment-type DEV --release-as-preferred
 ```
 
 3. To run the job, create a resource instance in Omnistrate with below parameters:
