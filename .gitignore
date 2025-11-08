@@ -26,9 +26,6 @@ venv/
 ENV/
 env/
 
-# Environment variables
-.env
-
 # IDE
 .vscode/
 .idea/
@@ -41,3 +38,10 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Ignored files
+.env
+.omnistrate.password
+.terraform
+.terraform.lock.hcl
+.DS_Store
