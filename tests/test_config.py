@@ -32,6 +32,10 @@ class TestConfig(unittest.TestCase):
         for var in self.env_vars:
             if var in os.environ:
                 del os.environ[var]
+        
+        # Set a default custom dimension for tests that don't specifically test dimensions
+        os.environ['DIMENSION1_NAME'] = 'default_dimension'
+        os.environ['DIMENSION1_FORMULA'] = 'value * 1'
 
     def tearDown(self):
         """Clean up after each test."""
@@ -55,7 +59,9 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(config.max_retries, 5)
         self.assertEqual(config.start_month, '2025-01')
         self.assertFalse(config.dry_run)
-        self.assertEqual(config.custom_dimensions, {})
+        # Should have the default dimension from setUp
+        self.assertEqual(len(config.custom_dimensions), 1)
+        self.assertIn('default_dimension', config.custom_dimensions)
 
     def test_config_with_environment_variables(self):
         """Test that Config loads values from environment variables."""
@@ -143,6 +149,10 @@ class TestConfig(unittest.TestCase):
 
     def test_custom_dimensions_partial_raises_error(self):
         """Test that providing only name or only formula raises an error."""
+        # Clear the default dimension from setUp
+        del os.environ['DIMENSION1_NAME']
+        del os.environ['DIMENSION1_FORMULA']
+        
         # Only name, no formula
         os.environ['DIMENSION1_NAME'] = 'cpu_hours'
         
@@ -163,6 +173,10 @@ class TestConfig(unittest.TestCase):
 
     def test_custom_dimensions_empty_raises_error(self):
         """Test that Config raises an error when no custom dimensions are provided."""
+        # Clear the default dimension from setUp
+        del os.environ['DIMENSION1_NAME']
+        del os.environ['DIMENSION1_FORMULA']
+        
         # Don't set any DIMENSION*_NAME or DIMENSION*_FORMULA environment variables
         # This should trigger the check: if len(self.custom_dimensions) == 0
         

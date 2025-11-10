@@ -58,13 +58,21 @@ class Config:
             dimension_name = os.getenv(name_key)
             dimension_formula = os.getenv(formula_key)
 
-            if dimension_name != None and dimension_name.strip() == "":
-                if dimension_name and dimension_formula:
-                    self.custom_dimensions[dimension_name] = dimension_formula
-                elif dimension_name or dimension_formula:
+            # Check if both name and formula are provided
+            if dimension_name and dimension_formula:
+                # Check for duplicate dimension names
+                if dimension_name in self.custom_dimensions:
                     raise ConfigurationError(
-                        f"Both {name_key} and {formula_key} must be provided together"
+                        f"Duplicate dimension name '{dimension_name}' found. "
+                        f"Dimension names must be unique."
                     )
+                self.custom_dimensions[dimension_name] = dimension_formula
+            elif dimension_name or dimension_formula:
+                # One is provided but not the other - this is an error
+                raise ConfigurationError(
+                    f"Both {name_key} and {formula_key} must be provided together"
+                )
+        
         if len(self.custom_dimensions) == 0:
             raise ConfigurationError("At least one custom dimension must be provided")
 
