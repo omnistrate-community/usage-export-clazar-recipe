@@ -37,3 +37,8 @@ docker-build:
 .PHONY: docker-run
 docker-run: docker-build
 	docker run -p 8080:8080 usage-export-clazar-recipe:latest
+
+.PHONY: test
+test:
+	@echo "Running unit tests..."
+	python3 -m unittest discover -s tests -p "test_*.py" -v
