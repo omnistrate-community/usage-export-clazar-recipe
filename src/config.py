@@ -31,15 +31,6 @@ class Config:
         self.aws_secret_access_key = os.getenv('AWS_SECRET_ACCESS_KEY')
         self.aws_region = os.getenv('AWS_REGION')
         self.aws_s3_bucket = os.getenv('S3_BUCKET_NAME', 'omnistrate-usage-metering-export-demo')
-
-    def setup_logging(self):
-        """Set up logging configuration."""
-        import logging
-        logging.basicConfig(
-            level=os.getenv('LOG_LEVEL', 'INFO').upper(),
-            format='%(asctime)s - %(levelname)s - %(message)s'
-        )
-        logging.info("Logging is configured to level: %s", os.getenv('LOG_LEVEL', 'INFO').upper())
         
     def _load_clazar_config(self):
         """Load and validate Clazar configuration."""
@@ -82,6 +73,15 @@ class Config:
         
         if len(self.custom_dimensions) == 0:
             raise ConfigurationError("At least one custom dimension must be provided")
+        
+    def setup_logging(self):
+        """Set up logging configuration."""
+        import logging
+        logging.basicConfig(
+            level=os.getenv('LOG_LEVEL', 'INFO').upper(),
+            format='%(asctime)s - %(levelname)s - %(message)s'
+        )
+        logging.info("Logging is configured to level: %s", os.getenv('LOG_LEVEL', 'INFO').upper())
 
     def validate_aws_credentials(self):
         """

@@ -48,7 +48,7 @@ class TestConfig(unittest.TestCase):
         config = Config()
         
         # Check defaults
-        self.assertEqual(config.bucket_name, 'omnistrate-usage-metering-export-demo')
+        self.assertEqual(config.aws_s3_bucket, 'omnistrate-usage-metering-export-demo')
         self.assertEqual(config.clazar_client_id, '')
         self.assertEqual(config.clazar_client_secret, '')
         self.assertEqual(config.clazar_cloud, 'aws')
