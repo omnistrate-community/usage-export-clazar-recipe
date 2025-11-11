@@ -165,7 +165,7 @@ class OmnistrateMeteringReader:
         return (f"omnistrate-metering/{service_name}/{environment_type}/"
                 f"{plan_id}/{year:04d}/{month:02d}/")
 
-    def list_monthly_subscription_files(self, prefix: str) -> List[str]:
+    def list_monthly_subscription_files(self, service_name: str, environment_type: str, plan_id: str, year: int, month: int) -> List[str]:
         """
         List all subscription JSON files in the given S3 prefix (for entire month).
         
@@ -175,6 +175,8 @@ class OmnistrateMeteringReader:
         Returns:
             List of S3 object keys
         """
+        # Get S3 prefix for the month
+        prefix = self.get_monthly_s3_prefix(service_name, environment_type, plan_id, year, month)
         try:
             paginator = self.s3_client.get_paginator('list_objects_v2')
             page_iterator = paginator.paginate(

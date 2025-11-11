@@ -55,7 +55,7 @@ class MeteringProcessor:
             Tuple of (year, month) for next month to process, or None if caught up
         """
         last_processed = self.state_manager.get_last_processed_month(service_name, environment_type, plan_id)
-        latest_month_with_complete_usage_data = self.state_manager.get_latest_month_with_complete_usage_data(service_name, environment_type, plan_id)
+        latest_month_with_complete_usage_data = self.metering_reader.get_latest_month_with_complete_usage_data(service_name, environment_type, plan_id)
         if latest_month_with_complete_usage_data is None:
             self.logger.error(f"Failed to retrieve latest month with complete usage data")
             return None
@@ -328,9 +328,6 @@ class MeteringProcessor:
         
         self.logger.info(f"Retrying {len(error_contracts)} error contracts for {year}-{month:02d}")
         
-        # Define the time window (month boundary)
-        last_day = calendar.monthrange(year, month)[1]
-        
         all_success = True
         
         for error_entry in error_contracts:
@@ -418,11 +415,8 @@ class MeteringProcessor:
         # First, retry any existing error contracts
         retry_success = self.retry_error_contracts(service_name, environment_type, plan_id, year, month)
         
-        # Get S3 prefix for the month
-        prefix = self.get_monthly_s3_prefix(service_name, environment_type, plan_id, year, month)
-        
         # List all subscription files for the month
-        subscription_files = self.list_monthly_subscription_files(prefix)
+        subscription_files = self.metering_reader.list_monthly_subscription_files(service_name, environment_type, plan_id, year, month)
         
         if not subscription_files:
             self.logger.info(f"No subscription files found for {year}-{month:02d}")
