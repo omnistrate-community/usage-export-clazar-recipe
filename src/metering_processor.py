@@ -775,7 +775,7 @@ class MeteringProcessor:
                 self.logger.info(f"Sending {len(records)} metering records to Clazar for contract {contract_id}")
                 
                 # Use the Clazar client to send data
-                response_data = self.clazar_client.send_metering_data(records, max_retries)
+                response_data = self.clazar_client.send_metering_data(records)
                 
                 # Check for errors in the response
                 has_errors, errors, error_code, error_message = self.clazar_client.check_response_for_errors(response_data)
@@ -846,16 +846,13 @@ class MeteringProcessor:
         self.logger.info(f"Retrying {len(error_contracts)} error contracts for {year}-{month:02d}")
         
         # Define the time window (month boundary)
-        start_time = datetime(year, month, 1)
         last_day = calendar.monthrange(year, month)[1]
-        end_time = datetime(year, month, last_day, 23, 59, 59)
         
         all_success = True
         
         for error_entry in error_contracts:
             contract_id = error_entry.get('contract_id')
             payload = error_entry.get('payload')
-            retry_count = error_entry.get('retry_count', 0)
             
             if not contract_id or not payload:
                 self.logger.warning(f"Skipping error contract with missing data: {error_entry}")
@@ -871,7 +868,7 @@ class MeteringProcessor:
                 self.logger.info(f"Retrying contract {contract_id} for {year}-{month:02d}")
                 
                 # Use the Clazar client to send data (it handles retries internally)
-                response_data = self.clazar_client.send_metering_data(records, max_retries - retry_count)
+                response_data = self.clazar_client.send_metering_data(records)
                 
                 # Check for errors in the response
                 has_errors, errors, error_code, error_message = self.clazar_client.check_response_for_errors(response_data)

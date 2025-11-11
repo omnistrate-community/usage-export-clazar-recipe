@@ -145,22 +145,29 @@ class ClazarClient:
             "Authorization": f"Bearer {self.access_token}"
         }
         
-        last_error = None
-        
-        for attempt in range(max_retries + 1):
+        for attempt in range(max_retries):
             try:
                 if attempt > 0:
                     # Exponential backoff: 2^attempt seconds
                     wait_time = 2 ** attempt
-                    self.logger.info(f"Retrying (attempt {attempt + 1}/{max_retries + 1}) after {wait_time}s delay")
+                    self.logger.info(f"Retrying after {wait_time}s delay (attempt {attempt + 1}/{max_retries})...")
                     time.sleep(wait_time)
                 
-                self.logger.info(f"Sending {len(records)} metering records to Clazar")
+                self.logger.info(f"Sending {len(records)} metering records to Clazar (attempt {attempt + 1}/{max_retries})")
                 response = requests.post(url, json=payload, headers=headers, timeout=30)
                 
                 if response.status_code != 200:
+                    error_msg = f"HTTP {response.status_code}: {response.text}"
+                    self.logger.warning(error_msg)
+                    
+                    # Only retry on server errors (5xx) or rate limiting (429)
+                    if response.status_code >= 500 or response.status_code == 429:
+                        if attempt < max_retries - 1:
+                            continue
+                    
+                    # Don't retry on client errors (4xx except 429)
                     raise ClazarAPIError(
-                        f"HTTP {response.status_code}: {response.text}",
+                        error_msg,
                         status_code=response.status_code,
                         response_data=response.json() if response.text else None
                     )
@@ -170,39 +177,41 @@ class ClazarClient:
                 if "results" not in response_data:
                     raise ClazarAPIError("Unexpected response format from Clazar API")
                 
-                self.logger.info(f"Successfully sent data to Clazar")
+                self.logger.info(f"Successfully sent {len(records)} metering records to Clazar")
                 self.logger.debug(f"Response: {response_data}")
                 
                 return response_data
                 
-            except requests.RequestException as e:
-                last_error = ClazarAPIError(f"Network error: {e}")
-                if attempt < max_retries:
-                    self.logger.warning(f"Network error on attempt {attempt + 1}: {e}")
+            except requests.Timeout as e:
+                self.logger.warning(f"Request timeout on attempt {attempt + 1}/{max_retries}: {e}")
+                if attempt < max_retries - 1:
                     continue
-                else:
-                    raise last_error
+                raise ClazarAPIError(f"Request timed out after {max_retries} attempts: {e}")
             
-            except ClazarAPIError as e:
-                last_error = e
-                if attempt < max_retries:
-                    self.logger.warning(f"API error on attempt {attempt + 1}: {e.message}")
+            except requests.ConnectionError as e:
+                self.logger.warning(f"Connection error on attempt {attempt + 1}/{max_retries}: {e}")
+                if attempt < max_retries - 1:
                     continue
-                else:
-                    raise
+                raise ClazarAPIError(f"Connection failed after {max_retries} attempts: {e}")
+            
+            except requests.RequestException as e:
+                self.logger.warning(f"Network error on attempt {attempt + 1}/{max_retries}: {e}")
+                if attempt < max_retries - 1:
+                    continue
+                raise ClazarAPIError(f"Network error after {max_retries} attempts: {e}")
+            
+            except ClazarAPIError:
+                # Re-raise ClazarAPIError as-is (already has proper error info)
+                raise
             
             except Exception as e:
-                last_error = ClazarAPIError(f"Unexpected error: {e}")
-                if attempt < max_retries:
-                    self.logger.warning(f"Unexpected error on attempt {attempt + 1}: {e}")
+                self.logger.error(f"Unexpected error on attempt {attempt + 1}/{max_retries}: {e}")
+                if attempt < max_retries - 1:
                     continue
-                else:
-                    raise last_error
+                raise ClazarAPIError(f"Unexpected error after {max_retries} attempts: {e}")
         
         # Should not reach here, but just in case
-        if last_error:
-            raise last_error
-        raise ClazarAPIError("Failed to send metering data after all retries")
+        raise ClazarAPIError(f"Failed to send metering data after {max_retries} attempts")
     
     def check_response_for_errors(self, response_data: Dict) -> tuple[bool, List[str], str, str]:
         """
