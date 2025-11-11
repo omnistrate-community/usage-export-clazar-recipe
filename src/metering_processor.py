@@ -762,7 +762,7 @@ class MeteringProcessor:
 
         # Login to Clazar once before sending data to consider expiry of tokens
         try:
-            self.clazar_client.login()
+            self.clazar_client.authenticate()
         except ClazarAPIError as e:
             self.logger.error(f"Failed to login to Clazar: {e.message}")
             return False
