@@ -22,7 +22,7 @@ class TestConfig(unittest.TestCase):
         # Clear all relevant environment variables before each test
         self.env_vars = [
             'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_REGION',
-            'S3_BUCKET_NAME', 'CLAZAR_CLIENT_ID', 'CLAZAR_CLIENT_SECRET',
+            'AWS_S3_BUCKET_NAME', 'CLAZAR_CLIENT_ID', 'CLAZAR_CLIENT_SECRET',
             'CLAZAR_CLOUD', 'SERVICE_NAME', 'ENVIRONMENT_TYPE', 'PLAN_ID',
             'START_MONTH', 'DRY_RUN',
             'DIMENSION1_NAME', 'DIMENSION1_FORMULA',
@@ -66,7 +66,7 @@ class TestConfig(unittest.TestCase):
         os.environ['AWS_ACCESS_KEY_ID'] = 'test_key'
         os.environ['AWS_SECRET_ACCESS_KEY'] = 'test_secret'
         os.environ['AWS_REGION'] = 'us-west-2'
-        os.environ['S3_BUCKET_NAME'] = 'test-bucket'
+        os.environ['AWS_S3_BUCKET_NAME'] = 'test-bucket'
         os.environ['CLAZAR_CLIENT_ID'] = 'client123'
         os.environ['CLAZAR_CLIENT_SECRET'] = 'secret456'
         os.environ['CLAZAR_CLOUD'] = 'azure'
@@ -208,7 +208,7 @@ class TestConfig(unittest.TestCase):
 
     def test_validate_required_config_success(self):
         """Test that validate_required_config passes with all required values."""
-        os.environ['S3_BUCKET_NAME'] = 'test-bucket'
+        os.environ['AWS_S3_BUCKET_NAME'] = 'test-bucket'
         os.environ['SERVICE_NAME'] = 'MySQL'
         os.environ['ENVIRONMENT_TYPE'] = 'PROD'
         os.environ['PLAN_ID'] = 'plan-123'
@@ -221,7 +221,7 @@ class TestConfig(unittest.TestCase):
         """Test that validate_required_config fails when required values are missing."""
         # All defaults are set, so bucket_name will be present
         # But let's set them to empty strings
-        os.environ['S3_BUCKET_NAME'] = ''
+        os.environ['AWS_S3_BUCKET_NAME'] = ''
         
         config = Config()
         with self.assertRaises(ConfigurationError) as context:
@@ -300,7 +300,7 @@ class TestConfig(unittest.TestCase):
         os.environ['AWS_ACCESS_KEY_ID'] = 'test_key'
         os.environ['AWS_SECRET_ACCESS_KEY'] = 'test_secret'
         os.environ['AWS_REGION'] = 'us-west-2'
-        os.environ['S3_BUCKET_NAME'] = 'test-bucket'
+        os.environ['AWS_S3_BUCKET_NAME'] = 'test-bucket'
         os.environ['SERVICE_NAME'] = 'MySQL'
         os.environ['ENVIRONMENT_TYPE'] = 'PROD'
         os.environ['PLAN_ID'] = 'plan-123'
@@ -313,7 +313,7 @@ class TestConfig(unittest.TestCase):
     def test_validate_all_fails_on_any_error(self):
         """Test that validate_all fails if any validation fails."""
         # Missing AWS credentials
-        os.environ['S3_BUCKET_NAME'] = 'test-bucket'
+        os.environ['AWS_S3_BUCKET_NAME'] = 'test-bucket'
         os.environ['SERVICE_NAME'] = 'MySQL'
         os.environ['ENVIRONMENT_TYPE'] = 'PROD'
         os.environ['PLAN_ID'] = 'plan-123'
@@ -325,7 +325,7 @@ class TestConfig(unittest.TestCase):
     def test_print_summary(self):
         """Test that print_summary runs without errors."""
         os.environ['AWS_REGION'] = 'us-west-2'
-        os.environ['S3_BUCKET_NAME'] = 'test-bucket'
+        os.environ['AWS_S3_BUCKET_NAME'] = 'test-bucket'
         os.environ['DIMENSION1_NAME'] = 'cpu_hours'
         os.environ['DIMENSION1_FORMULA'] = 'cpu * hours'
         
