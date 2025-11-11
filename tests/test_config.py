@@ -52,9 +52,9 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(config.clazar_client_id, '')
         self.assertEqual(config.clazar_client_secret, '')
         self.assertEqual(config.clazar_cloud, 'aws')
-        self.assertEqual(config.service_name, 'Postgres')
-        self.assertEqual(config.environment_type, 'PROD')
-        self.assertEqual(config.plan_id, 'pt-HJSv20iWX0')
+        self.assertEqual(config.service_name, '')
+        self.assertEqual(config.environment_type, '')
+        self.assertEqual(config.plan_id, '')
         self.assertEqual(config.start_month, '2025-01')
         self.assertFalse(config.dry_run)
         # Should have the default dimension from setUp

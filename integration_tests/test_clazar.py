@@ -80,7 +80,7 @@ class TestClazarIntegration(unittest.TestCase):
         
         # Create client and authenticate
         logger.info("Initializing Clazar client...")
-        client = ClazarClient(client_id=self.client_id, client_secret=self.client_secret)
+        client = ClazarClient(config=self.config)
         
         logger.info("Attempting to authenticate...")
         token = client.authenticate()
@@ -99,8 +99,13 @@ class TestClazarIntegration(unittest.TestCase):
         """Test that authentication fails with invalid credentials."""
         logger.info("Testing authentication with invalid credentials...")
         
+        # Create a config with invalid credentials
+        invalid_config = Config()
+        invalid_config.clazar_client_id = "invalid_id"
+        invalid_config.clazar_client_secret = "invalid_secret"
+        
         # Create client with invalid credentials
-        client = ClazarClient(client_id="invalid_id", client_secret="invalid_secret")
+        client = ClazarClient(config=invalid_config)
         
         # Expect authentication to raise ClazarAPIError
         with self.assertRaises(ClazarAPIError) as context:
@@ -115,7 +120,7 @@ class TestClazarIntegration(unittest.TestCase):
         
         # Create client and authenticate
         logger.info("Initializing Clazar client...")
-        client = ClazarClient(client_id=self.client_id, client_secret=self.client_secret)
+        client = ClazarClient(config=self.config)
         
         logger.info("Authenticating...")
         client.authenticate()
@@ -196,7 +201,7 @@ class TestClazarIntegration(unittest.TestCase):
         
         # Create client and authenticate
         logger.info("Initializing Clazar client...")
-        client = ClazarClient(client_id=self.client_id, client_secret=self.client_secret)
+        client = ClazarClient(config=self.config)
         
         logger.info("Authenticating...")
         client.authenticate()
@@ -260,7 +265,7 @@ class TestClazarIntegration(unittest.TestCase):
         
         # Create client and authenticate
         logger.info("Initializing Clazar client...")
-        client = ClazarClient(client_id=self.client_id, client_secret=self.client_secret)
+        client = ClazarClient(config=self.config)
         
         logger.info("Authenticating...")
         client.authenticate()

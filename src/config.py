@@ -42,9 +42,9 @@ class Config:
         
     def _load_processor_config(self):
         """Load and validate processor configuration."""
-        self.service_name = os.getenv('SERVICE_NAME', 'Postgres')
-        self.environment_type = os.getenv('ENVIRONMENT_TYPE', 'PROD')
-        self.plan_id = os.getenv('PLAN_ID', 'pt-HJSv20iWX0')
+        self.service_name = os.getenv('SERVICE_NAME', '')
+        self.environment_type = os.getenv('ENVIRONMENT_TYPE', '')
+        self.plan_id = os.getenv('PLAN_ID', '')
         self.start_month = os.getenv('START_MONTH', '2025-01')
         self.dry_run = os.getenv('DRY_RUN', 'false').lower() in ('true', '1', 'yes')
         
