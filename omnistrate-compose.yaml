@@ -36,6 +36,7 @@ services:
       DIMENSION3_FORMULA: $var.dimension3Formula
       START_MONTH: $var.startMonth
       DRY_RUN: $var.dryRun
+      LOG_LEVEL: $var.logLevel
     x-omnistrate-compute:
       replicaCount: 1
       instanceTypes:
@@ -178,4 +179,17 @@ services:
         required: false
         export: true
         defaultValue: "false"
+      - key: logLevel
+        description: Logging level (e.g., INFO, DEBUG)
+        name: Log Level
+        type: String
+        modifiable: true
+        required: false
+        export: true
+        defaultValue: "INFO"
+        options:
+          - INFO
+          - DEBUG
+          - WARNING
+          - ERROR
     x-omnistrate-mode-internal: false
