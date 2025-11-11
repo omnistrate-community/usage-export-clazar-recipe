@@ -6,7 +6,6 @@ This script pulls usage metering data from S3 and uploads aggregated data to Cla
 It processes data monthly and ensures only one metering record per month per buyer-dimension combo.
 """
 
-import json
 import logging
 import sys
 from collections import defaultdict
@@ -38,6 +37,8 @@ class MeteringProcessor:
         self.clazar_cloud = config.clazar_cloud
         self.custom_dimensions = config.custom_dimensions or {}
         self.metering_reader = metering_reader
+
+        self.logger = logging.getLogger(__name__)
 
     def get_next_month_to_process(self, service_name: str, environment_type: str, 
                                  plan_id: str, default_start_month: Optional[Tuple[int, int]] = None) -> Optional[Tuple[int, int]]:
@@ -77,49 +78,6 @@ class MeteringProcessor:
             return None
         
         return (next_year, next_month)
-
-    def get_monthly_s3_prefix(self, service_name: str, environment_type: str, 
-                             plan_id: str, year: int, month: int) -> str:
-        """
-        Generate S3 prefix for a specific month.
-        
-        Args:
-            service_name: Name of the service
-            environment_type: Environment type (e.g., PROD, DEV)
-            plan_id: Plan ID
-            year: Year
-            month: Month
-            
-        Returns:
-            S3 prefix string for the entire month
-        """
-        return self.metering_reader.get_monthly_s3_prefix(
-            service_name, environment_type, plan_id, year, month
-        )
-
-    def list_monthly_subscription_files(self, prefix: str) -> List[str]:
-        """
-        List all subscription JSON files in the given S3 prefix (for entire month).
-        
-        Args:
-            prefix: S3 prefix to search (should cover entire month)
-            
-        Returns:
-            List of S3 object keys
-        """
-        return self.metering_reader.list_monthly_subscription_files(prefix)
-
-    def read_s3_json_file(self, key: str) -> List[Dict]:
-        """
-        Read and parse a JSON file from S3.
-        
-        Args:
-            key: S3 object key
-            
-        Returns:
-            List of usage records
-        """
-        return self.metering_reader.read_s3_json_file(key)
 
     def aggregate_usage_data(self, usage_records: List[Dict]) -> Dict[Tuple[str, str], float]:
         """

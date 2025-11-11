@@ -6,7 +6,7 @@ This module handles reading and validating environment variables.
 """
 
 import os
-import sys
+import logging
 from typing import Dict, Optional, Tuple
 
 
@@ -20,6 +20,8 @@ class Config:
     
     def __init__(self):
         """Initialize configuration by reading environment variables."""
+        self.logging = logging.getLogger(__name__)
+
         self._load_aws_config()
         self._load_clazar_config()
         self._load_processor_config()
@@ -81,7 +83,7 @@ class Config:
             level=os.getenv('LOG_LEVEL', 'INFO').upper(),
             format='%(asctime)s - %(levelname)s - %(message)s'
         )
-        logging.info("Logging is configured to level: %s", os.getenv('LOG_LEVEL', 'INFO').upper())
+        self.logging.info("Logging is configured to level: %s", os.getenv('LOG_LEVEL', 'INFO').upper())
 
     def validate_aws_credentials(self):
         """
@@ -171,19 +173,19 @@ class Config:
     
     def print_summary(self):
         """Print a summary of the configuration (without sensitive data)."""
-        print(f"Configuration loaded:")
-        print(f"  Log Level: {os.getenv('LOG_LEVEL', 'INFO').upper()}")
-        print(f"  AWS S3 Bucket: {self.aws_s3_bucket}")
-        print(f"  AWS Region: {self.aws_region}")
-        print(f"  Service: {self.service_name}")
-        print(f"  Environment: {self.environment_type}")
-        print(f"  Plan ID: {self.plan_id}")
-        print(f"  Start Month: {self.start_month}")
-        print(f"  Dry Run: {self.dry_run}")
-        print(f"  Clazar Cloud: {self.clazar_cloud}")
+        self.logging.info(f"Configuration loaded:")
+        self.logging.info(f"  Log Level: {os.getenv('LOG_LEVEL', 'INFO').upper()}")
+        self.logging.info(f"  AWS S3 Bucket: {self.aws_s3_bucket}")
+        self.logging.info(f"  AWS Region: {self.aws_region}")
+        self.logging.info(f"  Service: {self.service_name}")
+        self.logging.info(f"  Environment: {self.environment_type}")
+        self.logging.info(f"  Plan ID: {self.plan_id}")
+        self.logging.info(f"  Start Month: {self.start_month}")
+        self.logging.info(f"  Dry Run: {self.dry_run}")
+        self.logging.info(f"  Clazar Cloud: {self.clazar_cloud}")
         
         if self.custom_dimensions:
-            print(f"  Custom dimensions configured: {list(self.custom_dimensions.keys())}")
+            self.logging.info(f"  Custom dimensions configured: {list(self.custom_dimensions.keys())}")
             for name, formula in self.custom_dimensions.items():
-                print(f"    {name}: {formula}")
+                self.logging.info(f"    {name}: {formula}")
                 
