@@ -14,6 +14,7 @@ import boto3
 from botocore.exceptions import ClientError
 
 from config import Config
+from omnistrate_metering_reader import OmnistrateMeteringReader
 
 class StateManagerError(Exception):
     """Exception raised for state management errors."""
@@ -32,7 +33,7 @@ class StateManager:
         """
         if not config:
             raise StateManagerError("Configuration object is required to initialize StateManager.")
-        if not config.bucket_name:
+        if not config.aws_s3_bucket:
             raise StateManagerError("AWS S3 bucket name is not configured.")
         if not config.environment_type:
             raise StateManagerError("Environment type is not configured.")
@@ -45,7 +46,7 @@ class StateManager:
         if not config.aws_region:
             raise StateManagerError("AWS region is not configured.")
 
-        self.bucket_name = config.bucket_name
+        self.aws_s3_bucket = config.aws_s3_bucket
         self.file_path = f"clazar/{config.service_name}-{config.environment_type}-{config.plan_id}-export_state.json"
         
         # Configure AWS credentials and create S3 client
@@ -62,7 +63,10 @@ class StateManager:
         # Set up logging
         self.logger = logging.getLogger(__name__)
         
-        self.logger.info(f"StateManager initialized for s3://{self.bucket_name}/{self.file_path}")
+        # Initialize OmnistrateMeteringReader for reading usage data
+        self.metering_reader = OmnistrateMeteringReader(config)
+        
+        self.logger.info(f"StateManager initialized for s3://{self.aws_s3_bucket}/{self.file_path}")
     
     def validate_access(self):
         """
@@ -106,14 +110,14 @@ class StateManager:
             Dictionary containing the state information
         """
         try:
-            response = self.s3_client.get_object(Bucket=self.bucket_name, Key=self.file_path)
+            response = self.s3_client.get_object(Bucket=self.aws_s3_bucket, Key=self.file_path)
             content = response['Body'].read().decode('utf-8')
             state = json.loads(content)
-            self.logger.debug(f"Loaded state from S3: s3://{self.bucket_name}/{self.file_path}")
+            self.logger.debug(f"Loaded state from S3: s3://{self.aws_s3_bucket}/{self.file_path}")
             return state
         except ClientError as e:
             if e.response['Error']['Code'] == 'NoSuchKey':
-                self.logger.info(f"State file not found in S3 at s3://{self.bucket_name}/{self.file_path}, initializing with default state")
+                self.logger.info(f"State file not found in S3 at s3://{self.aws_s3_bucket}/{self.file_path}, initializing with default state")
                 return {}
             else:
                 self.logger.error(f"Error loading state file from S3: {e}")
@@ -132,12 +136,12 @@ class StateManager:
         try:
             state_content = json.dumps(state, indent=2)
             self.s3_client.put_object(
-                Bucket=self.bucket_name,
+                Bucket=self.aws_s3_bucket,
                 Key=self.file_path,
                 Body=state_content,
                 ContentType='application/json'
             )
-            self.logger.debug(f"Saved state to S3: s3://{self.bucket_name}/{self.file_path}")
+            self.logger.debug(f"Saved state to S3: s3://{self.aws_s3_bucket}/{self.file_path}")
         except ClientError as e:
             self.logger.error(f"Error saving state file to S3: {e}")
             raise
@@ -432,30 +436,6 @@ class StateManager:
 
         self.save_state(state)
 
-    def load_usage_data_state(self) -> Dict:
-        """
-        Load the usage data state from the S3 state file.
-
-        Returns:
-            Dictionary containing the state information
-        """
-        try:
-            response = self.s3_client.get_object(Bucket=self.bucket_name, Key="omnistrate-metering/last_success_export.json")
-            content = response['Body'].read().decode('utf-8')
-            state = json.loads(content)
-            self.logger.debug(f"Loaded usage data state from S3: s3://{self.bucket_name}/omnistrate-metering/last_success_export.json")
-            return state
-        except ClientError as e:
-            if e.response['Error']['Code'] == 'NoSuchKey':
-                self.logger.error("omnistrate-metering/last_success_export.json file not found in S3")
-                return {}
-            else:
-                self.logger.error(f"Error loading omnistrate-metering/last_success_export.json file from S3: {e}")
-                return {}
-        except (json.JSONDecodeError, IOError) as e:
-            self.logger.error(f"Error parsing omnistrate-metering/last_success_export.json file: {e}")
-            return {}
-
     def get_latest_month_with_complete_usage_data(self, service_name: str, environment_type: str, 
                                 plan_id: str) -> Optional[Tuple[int, int]]:
         """
@@ -469,27 +449,6 @@ class StateManager:
         Returns:
             Tuple of (year, month) for last processed month, or None if never processed
         """
-        state = self.load_usage_data_state()
-    
-        if not state:
-            return None
-
-        service_key = self.get_service_key(service_name, environment_type, plan_id)
-        
-        if service_key not in state:
-            return None
-        
-        try:
-            last_processed_str = state[service_key].get('lastSuccessfulExport')
-            if not last_processed_str:
-                return None
-
-            # Parse ISO 8601 timestamp (e.g., "2025-01-31T23:59:59Z")
-            # We need to extract year and month from this
-            dt = datetime.fromisoformat(last_processed_str.replace('Z', '+00:00'))
-            
-            # Return the year and month of the last successful export
-            return (dt.year, dt.month)
-        except (KeyError, ValueError) as e:
-            self.logger.error(f"Error parsing last successful export for {service_key}: {e}")
-            return None
+        return self.metering_reader.get_latest_month_with_complete_usage_data(
+            service_name, environment_type, plan_id
+        )

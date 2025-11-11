@@ -18,7 +18,7 @@ services:
     privileged: true
     platform: linux/amd64
     environment:
-      S3_BUCKET_NAME: $var.s3BucketName
+      AWS_S3_BUCKET_NAME: $var.awsS3BucketName
       SERVICE_NAME: $var.serviceName
       ENVIRONMENT_TYPE: $var.environmentType
       PLAN_ID: $var.planId
@@ -114,9 +114,9 @@ services:
         required: false
         export: true
         defaultValue: "us-east-2"
-      - key: s3BucketName
+      - key: awsS3BucketName
         description: The name of the S3 bucket to pull usage data from.
-        name: S3 Bucket Name
+        name: AWS S3 Bucket Name
         type: String
         modifiable: true
         required: true

@@ -30,7 +30,8 @@ class TestStateManager(unittest.TestCase):
         os.environ['CLAZAR_CLIENT_ID'] = 'test_client_id'
         os.environ['CLAZAR_CLIENT_SECRET'] = 'test_client_secret'
         
-        self.bucket_name = "test-bucket"
+        self.aws_s3_bucket = "test-bucket"
+        self.aws_s3_bucket = "test-bucket"
         self.state_file_path = "clazar/Postgres-PROD-test-plan-123-export_state.json"
         self.aws_access_key_id = "test_access_key"
         self.aws_secret_access_key = "test_secret_key"
@@ -50,17 +51,21 @@ class TestStateManager(unittest.TestCase):
             if var in os.environ:
                 del os.environ[var]
         
+    @patch('omnistrate_metering_reader.boto3.client')
     @patch('state_manager.boto3.client')
-    def test_init(self, mock_boto_client):
+    def test_init(self, mock_boto_client, mock_boto_client_metering):
         """Test StateManager initialization."""
         mock_boto_client.return_value = self.mock_s3_client
+        mock_boto_client_metering.return_value = self.mock_s3_client
         
         config = Config()
         state_manager = StateManager(config=config)
         
-        self.assertEqual(state_manager.bucket_name, self.bucket_name)
+        self.assertEqual(state_manager.bucket_name, self.aws_s3_bucket)
         self.assertEqual(state_manager.file_path, self.state_file_path)
-        mock_boto_client.assert_called_once()
+        # Verify StateManager has a metering_reader instance
+        self.assertIsNotNone(state_manager.metering_reader)
+        self.assertIsNotNone(state_manager.s3_client)
         
     @patch('state_manager.boto3.client')
     def test_validate_access_success(self, mock_boto_client):
@@ -142,7 +147,7 @@ class TestStateManager(unittest.TestCase):
         
         self.mock_s3_client.put_object.assert_called_once()
         call_args = self.mock_s3_client.put_object.call_args
-        self.assertEqual(call_args[1]['Bucket'], self.bucket_name)
+        self.assertEqual(call_args[1]['Bucket'], self.aws_s3_bucket)
         self.assertEqual(call_args[1]['Key'], self.state_file_path)
         
     @patch('state_manager.boto3.client')

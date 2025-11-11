@@ -30,7 +30,16 @@ class Config:
         self.aws_access_key_id = os.getenv('AWS_ACCESS_KEY_ID')
         self.aws_secret_access_key = os.getenv('AWS_SECRET_ACCESS_KEY')
         self.aws_region = os.getenv('AWS_REGION')
-        self.bucket_name = os.getenv('S3_BUCKET_NAME', 'omnistrate-usage-metering-export-demo')
+        self.aws_s3_bucket = os.getenv('S3_BUCKET_NAME', 'omnistrate-usage-metering-export-demo')
+
+    def setup_logging(self):
+        """Set up logging configuration."""
+        import logging
+        logging.basicConfig(
+            level=os.getenv('LOG_LEVEL', 'INFO').upper(),
+            format='%(asctime)s - %(levelname)s - %(message)s'
+        )
+        logging.info("Logging is configured to level: %s", os.getenv('LOG_LEVEL', 'INFO').upper())
         
     def _load_clazar_config(self):
         """Load and validate Clazar configuration."""
@@ -95,7 +104,7 @@ class Config:
         Raises:
             ConfigurationError: If required configuration is missing
         """
-        if not all([self.bucket_name, self.service_name, self.environment_type, self.plan_id]):
+        if not all([self.aws_s3_bucket, self.service_name, self.environment_type, self.plan_id]):
             raise ConfigurationError(
                 "Missing required configuration. Please set environment variables: "
                 "S3_BUCKET_NAME, SERVICE_NAME, ENVIRONMENT_TYPE, PLAN_ID"
@@ -163,8 +172,9 @@ class Config:
     def print_summary(self):
         """Print a summary of the configuration (without sensitive data)."""
         print(f"Configuration loaded:")
+        print(f"  Log Level: {os.getenv('LOG_LEVEL', 'INFO').upper()}")
+        print(f"  AWS S3 Bucket: {self.aws_s3_bucket}")
         print(f"  AWS Region: {self.aws_region}")
-        print(f"  S3 Bucket: {self.bucket_name}")
         print(f"  Service: {self.service_name}")
         print(f"  Environment: {self.environment_type}")
         print(f"  Plan ID: {self.plan_id}")
@@ -176,3 +186,4 @@ class Config:
             print(f"  Custom dimensions configured: {list(self.custom_dimensions.keys())}")
             for name, formula in self.custom_dimensions.items():
                 print(f"    {name}: {formula}")
+                

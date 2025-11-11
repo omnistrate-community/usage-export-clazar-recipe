@@ -20,8 +20,10 @@ from botocore.exceptions import ClientError, NoCredentialsError
 from config import Config, ConfigurationError
 from clazar_client import ClazarClient, ClazarAPIError
 from state_manager import StateManager, StateManagerError
+from omnistrate_metering_reader import OmnistrateMeteringReader
+
 class MeteringProcessor:
-    def __init__(self, config: Config, state_manager: StateManager, clazar_client: ClazarClient = None):
+    def __init__(self, config: Config, metering_reader: OmnistrateMeteringReader, state_manager: StateManager, clazar_client: ClazarClient = None):
         """
         Initialize the metering processor.
         
@@ -35,27 +37,7 @@ class MeteringProcessor:
         self.clazar_client = clazar_client
         self.clazar_cloud = config.clazar_cloud
         self.custom_dimensions = config.custom_dimensions or {}
-        
-        # Configure AWS credentials and create S3 client
-        s3_kwargs = {}
-        if config.aws_access_key_id:
-            s3_kwargs['aws_access_key_id'] = config.aws_access_key_id
-        if config.aws_secret_access_key:
-            s3_kwargs['aws_secret_access_key'] = config.aws_secret_access_key
-        if config.aws_region:
-            s3_kwargs['region_name'] = config.aws_region
-        
-        self.s3_client = boto3.client('s3', **s3_kwargs)
-        
-        # Set up logging
-        logging.basicConfig(
-            level=logging.INFO,
-            format='%(asctime)s - %(levelname)s - %(message)s'
-        )
-        self.logger = logging.getLogger(__name__)
-        
-        # Log AWS configuration (without exposing sensitive data)
-        self.logger.info(f"Using provided AWS credentials for region: {config.aws_region}")
+        self.metering_reader = metering_reader
 
     def get_next_month_to_process(self, service_name: str, environment_type: str, 
                                  plan_id: str, default_start_month: Optional[Tuple[int, int]] = None) -> Optional[Tuple[int, int]]:
@@ -111,8 +93,9 @@ class MeteringProcessor:
         Returns:
             S3 prefix string for the entire month
         """
-        return (f"omnistrate-metering/{service_name}/{environment_type}/"
-                f"{plan_id}/{year:04d}/{month:02d}/")
+        return self.metering_reader.get_monthly_s3_prefix(
+            service_name, environment_type, plan_id, year, month
+        )
 
     def list_monthly_subscription_files(self, prefix: str) -> List[str]:
         """
@@ -124,28 +107,7 @@ class MeteringProcessor:
         Returns:
             List of S3 object keys
         """
-        try:
-            paginator = self.s3_client.get_paginator('list_objects_v2')
-            page_iterator = paginator.paginate(
-                Bucket=self.bucket_name,
-                Prefix=prefix
-            )
-            
-            json_files = []
-            for page in page_iterator:
-                if 'Contents' in page:
-                    # Filter for JSON files
-                    json_files.extend([
-                        obj['Key'] for obj in page['Contents'] 
-                        if obj['Key'].endswith('.json')
-                    ])
-            
-            self.logger.info(f"Found {len(json_files)} subscription files in {prefix}")
-            return json_files
-            
-        except ClientError as e:
-            self.logger.error(f"Error listing S3 objects: {e}")
-            return []
+        return self.metering_reader.list_monthly_subscription_files(prefix)
 
     def read_s3_json_file(self, key: str) -> List[Dict]:
         """
@@ -157,20 +119,7 @@ class MeteringProcessor:
         Returns:
             List of usage records
         """
-        try:
-            response = self.s3_client.get_object(Bucket=self.bucket_name, Key=key)
-            content = response['Body'].read().decode('utf-8')
-            data = json.loads(content)
-            
-            self.logger.debug(f"Read {len(data)} records from {key}")
-            return data
-            
-        except ClientError as e:
-            self.logger.error(f"Error reading S3 file {key}: {e}")
-            return []
-        except json.JSONDecodeError as e:
-            self.logger.error(f"Error parsing JSON from {key}: {e}")
-            return []
+        return self.metering_reader.read_s3_json_file(key)
 
     def aggregate_usage_data(self, usage_records: List[Dict]) -> Dict[Tuple[str, str], float]:
         """
@@ -560,7 +509,7 @@ class MeteringProcessor:
         
         # Send to Clazar
         send_success = self.send_to_clazar(filtered_data, start_time, end_time, 
-                                         service_name, environment_type, plan_id, max_retries)
+                                         service_name, environment_type, plan_id)
         
         # Return True only if both retry and send operations were successful
         return retry_success and send_success
@@ -591,7 +540,7 @@ class MeteringProcessor:
         year, month = next_month
         self.logger.info(f"Processing month: {year}-{month:02d}")
         
-        success = self.process_month(service_name, environment_type, plan_id, year, month, max_retries)
+        success = self.process_month(service_name, environment_type, plan_id, year, month)
         
         if success:
             # Update state only if processing was successful
@@ -604,33 +553,47 @@ class MeteringProcessor:
 
 def main_processing():
     """Main processing function to run the metering processor."""
-    
+
     # Load and validate configuration
     try:
         config = Config()
+        config.setup_logging()
         config.validate_all()
         config.print_summary()
     except ConfigurationError as e:
-        print(f"Error: {e}")
+        logging.error(f"Error: {e}")
         sys.exit(1)
-    
+
+        
     try:
+        # Initialize Omnistrate metering reader
+        logging.info("Initializing Omnistrate metering reader...")
+        metering_reader = OmnistrateMeteringReader(config)
+        logging.info("Omnistrate metering reader initialized successfully")
+        try :
+            metering_reader.validate_access()
+            logging.info("Omnistrate metering reader validated successfully")
+        except Exception as e:
+            logging.error(f"Error validating Omnistrate metering reader: {e}")
+            sys.exit(1)
+
         # Initialize StateManager and validate access
-        print("Initializing state manager...")
+        logging.info("Initializing state manager...")
         state_manager = StateManager(config)
         try:
             state_manager.validate_access()
-            print("State manager validated successfully")
+            logging.info("State manager validated successfully")
         except StateManagerError as e:
-            print(f"Error validating state manager: {e}")
+            logging.error(f"Error validating state manager: {e}")
             sys.exit(1)
         
         # Initialize Clazar client and authenticate
         clazar_client = ClazarClient(config)
         try:
             clazar_client.authenticate()
+            logging.info("Clazar client authenticated successfully")
         except ClazarAPIError as e:
-            print(f"Error authenticating with Clazar: {e.message}")
+            logging.error(f"Error authenticating with Clazar: {e.message}")
             sys.exit(1)
 
         # Initialize the processor
@@ -649,26 +612,26 @@ def main_processing():
         )
         
         if success:
-            print("Metering processing completed successfully")
+            logging.info("Metering processing completed successfully")
             return True
         else:
-            print("Metering processing failed")
+            logging.error("Metering processing failed")
             return False
     except ConfigurationError as e:
-        print(f"Configuration error: {e}")
+        logging.error(f"Configuration error: {e}")
         return False
     except ClazarAPIError as e:
-        print(f"Clazar API error: {e.message}")
+        logging.error(f"Clazar API error: {e.message}")
         return False
     except StateManagerError as e:
-        print(f"State manager error: {e}")
+        logging.error(f"State manager error: {e}")
         return False
     except NoCredentialsError:
-        print("Error: AWS credentials not found.")
-        print("Please configure AWS credentials by setting AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables.")
+        logging.error("AWS credentials not found.")
+        logging.error("Please configure AWS credentials by setting AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables.")
         return False
     except Exception as e:
-        print(f"Unexpected error: {e}")
+        logging.error(f"Unexpected error: {e}")
         return False
 
 
