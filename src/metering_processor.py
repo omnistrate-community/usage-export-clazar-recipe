@@ -569,7 +569,7 @@ class MeteringProcessor:
         return retry_success and send_success
 
     def process_next_month(self, service_name: str, environment_type: str, 
-                          plan_id: str, max_retries: int = 5, start_month: tuple = (2025, 1)) -> bool:
+                          plan_id: str, start_month: tuple = (2025, 1)) -> bool:
         """
         Process the next pending month for a specific service configuration.
         
@@ -577,7 +577,6 @@ class MeteringProcessor:
             service_name: Name of the service
             environment_type: Environment type
             plan_id: Plan ID
-            max_retries: Maximum retry attempts for failed contracts
             start_month: Default start month if no previous processing history
             
         Returns:
@@ -621,13 +620,7 @@ def main_processing():
     try:
         # Initialize StateManager and validate access
         print("Initializing state manager...")
-        state_manager = StateManager(
-            bucket_name=config.bucket_name,
-            aws_access_key_id=config.aws_access_key_id,
-            aws_secret_access_key=config.aws_secret_access_key,
-            aws_region=config.aws_region
-        )
-        
+        state_manager = StateManager(config)
         try:
             state_manager.validate_access()
             print("State manager validated successfully")
@@ -636,11 +629,7 @@ def main_processing():
             sys.exit(1)
         
         # Initialize Clazar client and authenticate
-        clazar_client = ClazarClient(
-            config,
-            dry_run=config.dry_run
-        )
-        
+        clazar_client = ClazarClient(config)
         try:
             clazar_client.authenticate()
         except ClazarAPIError as e:
@@ -659,7 +648,7 @@ def main_processing():
 
         success = processor.process_next_month(
             config.service_name, config.environment_type, config.plan_id, 
-            config.max_retries, (start_year, start_month)
+             (start_year, start_month)
         )
         
         if success:
