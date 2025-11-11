@@ -9,7 +9,7 @@ including authentication and sending metering data.
 import json
 import logging
 import time
-from typing import Dict, List, Optional
+from typing import Dict, List, Tuple
 
 import requests
 
@@ -213,7 +213,7 @@ class ClazarClient:
         # Should not reach here, but just in case
         raise ClazarAPIError(f"Failed to send metering data after {max_retries + 1} attempts")
     
-    def check_response_for_errors(self, response_data: Dict) -> tuple[bool, List[str], str, str]:
+    def check_response_for_errors(self, response_data: Dict) -> Tuple[bool, List[str], str, str]:
         """
         Check Clazar API response for errors.
         
