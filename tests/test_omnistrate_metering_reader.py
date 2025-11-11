@@ -343,30 +343,28 @@ class TestOmnistrateMeteringReader(unittest.TestCase):
         # Mock paginator
         mock_paginator = MagicMock()
         mock_s3.get_paginator.return_value = mock_paginator
-        
-        # Mock pagination result
         mock_paginator.paginate.return_value = [
             {
                 'Contents': [
-                    {'Key': 'prefix/file1.json'},
-                    {'Key': 'prefix/file2.json'},
-                    {'Key': 'prefix/file3.txt'},  # Should be filtered out
+                    {'Key': 'omnistrate-metering/my-service/PROD/plan-123/2025/01/file1.json'},
+                    {'Key': 'omnistrate-metering/my-service/PROD/plan-123/2025/01/file2.json'},
+                    {'Key': 'omnistrate-metering/my-service/PROD/plan-123/2025/01/file3.txt'},  # Should be filtered out
                 ]
             }
         ]
         
         reader = OmnistrateMeteringReader(self.config)
-        files = reader.list_monthly_subscription_files('prefix/')
+        files = reader.list_monthly_subscription_files('my-service', 'PROD', 'plan-123', 2025, 1)
         
         self.assertEqual(len(files), 2)
-        self.assertIn('prefix/file1.json', files)
-        self.assertIn('prefix/file2.json', files)
-        self.assertNotIn('prefix/file3.txt', files)
+        self.assertIn('omnistrate-metering/my-service/PROD/plan-123/2025/01/file1.json', files)
+        self.assertIn('omnistrate-metering/my-service/PROD/plan-123/2025/01/file2.json', files)
+        self.assertNotIn('omnistrate-metering/my-service/PROD/plan-123/2025/01/file3.txt', files)
         
         mock_s3.get_paginator.assert_called_once_with('list_objects_v2')
         mock_paginator.paginate.assert_called_once_with(
             Bucket='test-bucket',
-            Prefix='prefix/'
+            Prefix='omnistrate-metering/my-service/PROD/plan-123/2025/01/'
         )
 
     @patch('omnistrate_metering_reader.boto3.client')
@@ -381,7 +379,7 @@ class TestOmnistrateMeteringReader(unittest.TestCase):
         mock_paginator.paginate.return_value = [{}]  # No 'Contents' key
         
         reader = OmnistrateMeteringReader(self.config)
-        files = reader.list_monthly_subscription_files('prefix/')
+        files = reader.list_monthly_subscription_files('my-service', 'PROD', 'plan-123', 2025, 1)
         
         self.assertEqual(files, [])
 
@@ -396,7 +394,7 @@ class TestOmnistrateMeteringReader(unittest.TestCase):
         mock_s3.get_paginator.side_effect = ClientError(error_response, 'ListObjectsV2')
         
         reader = OmnistrateMeteringReader(self.config)
-        files = reader.list_monthly_subscription_files('prefix/')
+        files = reader.list_monthly_subscription_files('my-service', 'PROD', 'plan-123', 2025, 1)
         
         self.assertEqual(files, [])
 
@@ -472,26 +470,26 @@ class TestOmnistrateMeteringReader(unittest.TestCase):
         mock_paginator.paginate.return_value = [
             {
                 'Contents': [
-                    {'Key': 'prefix/file1.json'},
-                    {'Key': 'prefix/file2.json'},
+                    {'Key': 'omnistrate-metering/my-service/PROD/plan-123/2025/01/file1.json'},
+                    {'Key': 'omnistrate-metering/my-service/PROD/plan-123/2025/01/file2.json'},
                 ]
             },
             {
                 'Contents': [
-                    {'Key': 'prefix/file3.json'},
-                    {'Key': 'prefix/file4.json'},
+                    {'Key': 'omnistrate-metering/my-service/PROD/plan-123/2025/01/file3.json'},
+                    {'Key': 'omnistrate-metering/my-service/PROD/plan-123/2025/01/file4.json'},
                 ]
             }
         ]
         
         reader = OmnistrateMeteringReader(self.config)
-        files = reader.list_monthly_subscription_files('prefix/')
+        files = reader.list_monthly_subscription_files('my-service', 'PROD', 'plan-123', 2025, 1)
         
         self.assertEqual(len(files), 4)
-        self.assertIn('prefix/file1.json', files)
-        self.assertIn('prefix/file2.json', files)
-        self.assertIn('prefix/file3.json', files)
-        self.assertIn('prefix/file4.json', files)
+        self.assertIn('omnistrate-metering/my-service/PROD/plan-123/2025/01/file1.json', files)
+        self.assertIn('omnistrate-metering/my-service/PROD/plan-123/2025/01/file2.json', files)
+        self.assertIn('omnistrate-metering/my-service/PROD/plan-123/2025/01/file3.json', files)
+        self.assertIn('omnistrate-metering/my-service/PROD/plan-123/2025/01/file4.json', files)
 
 
 if __name__ == '__main__':
