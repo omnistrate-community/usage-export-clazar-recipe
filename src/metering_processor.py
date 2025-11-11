@@ -30,10 +30,10 @@ class MeteringProcessor:
             state_manager: StateManager instance for state persistence
             clazar_client: ClazarClient instance for API interactions
         """
-        self.bucket_name = config.aws_s3_bucket
+        self.aws_s3_bucket = config.aws_s3_bucket
         self.state_manager = state_manager
         self.clazar_client = clazar_client
-        self.cloud = config.cloud
+        self.clazar_cloud = config.clazar_cloud
         self.custom_dimensions = config.custom_dimensions or {}
         
         # Configure AWS credentials and create S3 client
@@ -318,7 +318,7 @@ class MeteringProcessor:
         
         for (external_payer_id, dimension), quantity in aggregated_data.items():
             record = {
-                "cloud": self.cloud,
+                "cloud": self.clazar_cloud,
                 "contract_id": external_payer_id,
                 "dimension": dimension,
                 "start_time": start_time.isoformat() + "Z",

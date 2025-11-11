@@ -77,7 +77,7 @@ omnistrate-ctl build -f omnistrate-compose.yaml --product-name "Clazar exporter"
 - `S3_BUCKET_NAME`: S3 bucket name
 - `CLAZAR_CLIENT_ID`: Clazar client ID for authentication
 - `CLAZAR_CLIENT_SECRET`: Clazar client secret for authentication
-- `CLAZAR_CLOUD`: Cloud provider name (e.g., "aws", "gcp", "azure")
+- `CLAZAR_CLOUD`: Cloud Provider Marketplace (e.g., "aws", "gcp", "azure")
 - `SERVICE_NAME`: Name of the service (e.g., "Postgres")
 - `ENVIRONMENT_TYPE`: Environment type (e.g., "PROD", "DEV")
 - `PLAN_ID`: Plan ID (e.g., "pt-HJSv20iWX0")
