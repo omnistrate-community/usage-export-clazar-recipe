@@ -13,6 +13,8 @@ from typing import Any, Dict, List, Tuple
 
 import requests
 
+from config import Config
+
 
 class ClazarAPIError(Exception):
     """Exception raised for Clazar API errors."""
@@ -31,21 +33,17 @@ class ClazarClient:
     AUTH_ENDPOINT = "/authenticate/"
     METERING_ENDPOINT = "/metering/"
     
-    def __init__(self, client_id: str = None, client_secret: str = None, 
-                 access_token: str = None, dry_run: bool = False):
+    def __init__(self, config: Config):
         """
         Initialize the Clazar client.
         
         Args:
-            client_id: Clazar client ID for authentication
-            client_secret: Clazar client secret for authentication
-            access_token: Pre-authenticated access token (if available)
-            dry_run: If True, skip actual API calls and only log payloads
+            config: Configuration object containing Clazar credentials
         """
-        self.client_id = client_id
-        self.client_secret = client_secret
-        self.access_token = access_token
-        self.dry_run = dry_run
+        self.client_id = config.clazar_client_id
+        self.client_secret = config.clazar_client_secret
+        self.access_token = None
+        self.dry_run = config.dry_run
         
         self.logger = logging.getLogger(__name__)
     

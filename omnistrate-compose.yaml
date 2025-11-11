@@ -28,7 +28,6 @@ services:
       AWS_ACCESS_KEY_ID: $var.awsAccessKeyId
       AWS_SECRET_ACCESS_KEY: $var.awsSecretAccessKey
       AWS_REGION: $var.awsRegion
-      STATE_FILE_PATH: $var.stateFilePath
       START_MONTH: $var.startMonth
       DRY_RUN: $var.dryRun
       DIMENSION1_NAME: $var.dimension1Name
@@ -122,14 +121,6 @@ services:
         modifiable: true
         required: true
         export: true
-      - key: stateFilePath
-        description: Path to store the state file for storing processed data in the S3 bucket.
-        name: State File Path
-        type: String
-        modifiable: true 
-        required: false
-        export: true
-        defaultValue: "metering_state.json"
       - key: startMonth
         description: "Start Month for processing (format: YYYY-MM)"
         name: Start Month

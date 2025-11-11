@@ -8,21 +8,17 @@ It processes data monthly and ensures only one metering record per month per buy
 
 import json
 import logging
-import os
 import sys
-import time
 from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Tuple
 import calendar
 
 import boto3
-import requests
 from botocore.exceptions import ClientError, NoCredentialsError
 
 from config import Config, ConfigurationError
 from clazar_client import ClazarClient, ClazarAPIError
-
 
 class MeteringProcessor:
     def __init__(self, bucket_name: str, state_file_path: str = "metering_state.json", 
@@ -1044,8 +1040,7 @@ def main_processing():
     try:
         # Initialize Clazar client and authenticate
         clazar_client = ClazarClient(
-            client_id=config.clazar_client_id,
-            client_secret=config.clazar_client_secret,
+            config,
             dry_run=config.dry_run
         )
         
