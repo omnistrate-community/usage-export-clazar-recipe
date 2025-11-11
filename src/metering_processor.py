@@ -588,11 +588,39 @@ def main_processing():
 
 
 def main():
-    """Main function to run the metering processor."""
+    """Main function to run the metering processor in a continuous loop."""
+    import time
     
-    success = main_processing()
-    if not success:
-        sys.exit(1)  # Exit with error code if processing failed
+    # Run once initially
+    logging.info("Starting metering processor in continuous mode (5-minute interval)")
+    
+    while True:
+        try:
+            logging.info("=" * 80)
+            logging.info("Starting processing cycle at %s", time.strftime('%Y-%m-%d %H:%M:%S'))
+            logging.info("=" * 80)
+            
+            success = main_processing()
+            
+            if success:
+                logging.info("Processing cycle completed successfully")
+            else:
+                logging.warning("Processing cycle completed with errors")
+            
+            logging.info("=" * 80)
+            logging.info("Waiting 5 minutes until next cycle...")
+            logging.info("=" * 80)
+            
+            # Sleep for 5 minutes (300 seconds)
+            time.sleep(300)
+            
+        except KeyboardInterrupt:
+            logging.info("\nReceived interrupt signal. Shutting down gracefully...")
+            sys.exit(0)
+        except Exception as e:
+            logging.error(f"Unexpected error in main loop: {e}")
+            logging.info("Waiting 5 minutes before retry...")
+            time.sleep(300)
 
 
 if __name__ == "__main__":

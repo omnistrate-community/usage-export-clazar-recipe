@@ -25,6 +25,7 @@ class Config:
         self._load_aws_config()
         self._load_clazar_config()
         self._load_processor_config()
+        self._load_healthcheck_config()
         self._load_custom_dimensions()
         
     def _load_aws_config(self):
@@ -47,6 +48,10 @@ class Config:
         self.plan_id = os.getenv('PLAN_ID', '')
         self.start_month = os.getenv('START_MONTH', '2025-01')
         self.dry_run = os.getenv('DRY_RUN', 'false').lower() in ('true', '1', 'yes')
+    
+    def _load_healthcheck_config(self):
+        """Load healthcheck server configuration."""
+        self.healthcheck_port = int(os.getenv('HEALTHCHECK_PORT', '8080'))
         
     def _load_custom_dimensions(self):
         """Load and validate custom dimensions configuration."""
@@ -79,11 +84,16 @@ class Config:
     def setup_logging(self):
         """Set up logging configuration."""
         import logging
+        import sys
+        
         logging.basicConfig(
             level=os.getenv('LOG_LEVEL', 'INFO').upper(),
-            format='%(asctime)s - %(levelname)s - %(message)s'
+            format='%(asctime)s - %(levelname)s - %(message)s',
+            stream=sys.stdout,
+            force=True
         )
-        self.logging.info("Logging is configured to level: %s", os.getenv('LOG_LEVEL', 'INFO').upper())
+        
+        logging.info("Logging is configured to level: %s", os.getenv('LOG_LEVEL', 'INFO').upper())
 
     def validate_aws_credentials(self):
         """
@@ -109,7 +119,7 @@ class Config:
         if not all([self.aws_s3_bucket, self.service_name, self.environment_type, self.plan_id]):
             raise ConfigurationError(
                 "Missing required configuration. Please set environment variables: "
-                "S3_BUCKET_NAME, SERVICE_NAME, ENVIRONMENT_TYPE, PLAN_ID"
+                "AWS_S3_BUCKET_NAME, SERVICE_NAME, ENVIRONMENT_TYPE, PLAN_ID"
             )
     
     def validate_custom_dimensions(self):
@@ -175,6 +185,7 @@ class Config:
         """Print a summary of the configuration (without sensitive data)."""
         self.logging.info(f"Configuration loaded:")
         self.logging.info(f"  Log Level: {os.getenv('LOG_LEVEL', 'INFO').upper()}")
+        self.logging.info(f"  Healthcheck Port: {self.healthcheck_port}")
         self.logging.info(f"  AWS S3 Bucket: {self.aws_s3_bucket}")
         self.logging.info(f"  AWS Region: {self.aws_region}")
         self.logging.info(f"  Service: {self.service_name}")

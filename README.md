@@ -74,7 +74,7 @@ omnistrate-ctl build -f omnistrate-compose.yaml --product-name "Clazar exporter"
 - `AWS_ACCESS_KEY_ID`: AWS access key ID
 - `AWS_SECRET_ACCESS_KEY`: AWS secret access key
 - `AWS_REGION`: AWS region (default: uses AWS default)
-- `S3_BUCKET_NAME`: S3 bucket name
+- `AWS_S3_BUCKET_NAME`: S3 bucket name
 - `CLAZAR_CLIENT_ID`: Clazar client ID for authentication
 - `CLAZAR_CLIENT_SECRET`: Clazar client secret for authentication
 - `CLAZAR_CLOUD`: Cloud Provider Marketplace (e.g., "aws", "gcp", "azure")
