@@ -461,7 +461,7 @@ class MeteringProcessor:
                     # Update error entry with new retry count
                     self.state_manager.mark_contract_month_error(service_name, environment_type, plan_id, 
                                                  contract_id, year, month, errors, error_code, 
-                                                 error_message, payload, max_retries)
+                                                 error_message, payload,)
                     all_success = False
                 else:
                     # Success - remove from error contracts and mark as processed
@@ -478,14 +478,14 @@ class MeteringProcessor:
                 self.logger.error(f"Clazar API error retrying contract {contract_id}: {e.message}")
                 self.state_manager.mark_contract_month_error(service_name, environment_type, plan_id, 
                                              contract_id, year, month, [e.message], "RETRY_ERROR", 
-                                             e.message, payload, max_retries)
+                                             e.message, payload)
                 all_success = False
                 
             except Exception as e:
                 self.logger.error(f"Unexpected error retrying contract {contract_id}: {e}")
                 self.state_manager.mark_contract_month_error(service_name, environment_type, plan_id, 
                                              contract_id, year, month, [str(e)], "RETRY_ERROR", 
-                                             str(e), payload, max_retries)
+                                             str(e), payload)
                 all_success = False
             
             if not success:
@@ -494,7 +494,7 @@ class MeteringProcessor:
         return all_success
 
     def process_month(self, service_name: str, environment_type: str, 
-                     plan_id: str, year: int, month: int, max_retries: int = 5) -> bool:
+                     plan_id: str, year: int, month: int) -> bool:
         """
         Process usage data for a specific month.
         
@@ -512,7 +512,7 @@ class MeteringProcessor:
         self.logger.info(f"Processing month: {year}-{month:02d} for {service_name}/{environment_type}/{plan_id}")
         
         # First, retry any existing error contracts
-        retry_success = self.retry_error_contracts(service_name, environment_type, plan_id, year, month, max_retries)
+        retry_success = self.retry_error_contracts(service_name, environment_type, plan_id, year, month)
         
         # Get S3 prefix for the month
         prefix = self.get_monthly_s3_prefix(service_name, environment_type, plan_id, year, month)
