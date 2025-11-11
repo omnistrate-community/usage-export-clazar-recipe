@@ -52,6 +52,15 @@ class TestStateManagerIntegration(unittest.TestCase):
         # Load configuration - fail test if config cannot be loaded
         try:
             self.config = Config()
+            
+            # Set test-specific values if not already configured
+            if not self.config.service_name:
+                self.config.service_name = "Test service"
+            if not self.config.environment_type:
+                self.config.environment_type = "TEST"
+            if not self.config.plan_id:
+                self.config.plan_id = "pt-xxxxxxxx"
+            
             logger.info("✓ Configuration loaded successfully")
             logger.info(f"  S3 Bucket: {self.config.aws_s3_bucket}")
             logger.info(f"  Service: {self.config.service_name}")
