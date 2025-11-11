@@ -62,7 +62,12 @@ docker-build:
 docker-run: docker-build
 	docker run -p 8080:8080 usage-export-clazar-recipe:latest
 
-.PHONY: test
-test: build
+.PHONY: unit-tests
+unit-tests: build
 	@echo "Running unit tests..."
 	$(VENV_DIR)/bin/python -m unittest discover -s tests -p "test_*.py" -v
+
+.PHONY: integration-tests
+integration-tests: build
+	@echo "Running integration tests..."
+	$(VENV_DIR)/bin/python -m unittest discover -s integration_tests -p "test_*.py" -v

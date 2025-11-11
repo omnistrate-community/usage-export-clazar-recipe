@@ -10,9 +10,10 @@ To obtain the contract IDs of your buyers, you can use the included `clazar_cont
 
 In Omnistrate UI, navigate to *"FinOps Center > Tenant Pricing -> Modify Tenant Pricing"* and set the `External Payer ID` field to the corresponding Clazar contract ID. When set, this value will be included in the exported metering data under the `externalPayerId` field. This allows the exporter to correctly associate usage data with the appropriate Clazar contracts.
 
-
 ### AWS Permissions
+
 Your AWS credentials need the following S3 permissions:
+
 ```json
 {
     "Version": "2012-10-17",
@@ -20,13 +21,28 @@ Your AWS credentials need the following S3 permissions:
         {
             "Effect": "Allow",
             "Action": [
-                "s3:GetObject",
-                "s3:ListBucket",
-                "s3:PutObject"
+                "s3:ListBucket"
             ],
             "Resource": [
                 "arn:aws:s3:::your-bucket-name",
+            ]
+        }, 
+        {
+            "Effect": "Allow",
+            "Action": [
+                "s3:GetObject"
+            ],
+            "Resource": [
                 "arn:aws:s3:::your-bucket-name/*"
+            ]
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "s3:PutObject"
+            ],
+            "Resource": [
+                "arn:aws:s3:::your-bucket-name/clazar/*"
             ]
         }
     ]
@@ -43,7 +59,7 @@ To deploy the Clazar Exporter in Omnistrate, follow these steps:
 
 2. Build the exporter into a service using the Omnistrate CLI. Ensure you have the Omnistrate CLI (`omctl`) installed and logged in. Make sure you have docker installed and running.
 
-```
+```sbash
 make release
 ```
 
@@ -77,18 +93,21 @@ Optional: additional dimensions and formulas to export to Clazar
 ## Custom Dimensions
 
 **Example Usage:**
+
 - `DIMENSION1_NAME`: "pod_hours"
 - `DIMENSION1_FORMULA`: "cpu_core_hours / 2"
 
 This would create a custom dimension called "pod_hours" calculated as half of the CPU core hours (assuming 2-core machines).
 
 **Available Variables in Formulas:**
+
 - `memory_byte_hours`: Memory usage in byte-hours
 - `storage_allocated_byte_hours`: Storage usage in byte-hours
 - `cpu_core_hours`: CPU core usage in core-hours
 - `replica_hours`: Replica usage in replica-hours
 
 **Formula Rules:**
+
 - Both name and formula must be provided together for each dimension
 - Dimension names must be unique across all custom dimensions
 - Formulas can use basic arithmetic operations (+, -, *, /, //, %, **)
@@ -104,6 +123,7 @@ This would create a custom dimension called "pod_hours" calculated as half of th
 ## Job Behavior
 
 ### Periodic Execution
+
 - The metering processor is configured to run as a cron job every 5 minutes. The first run happens at the 5th minute after the job starts, and subsequent runs occur every 5 minutes thereafter. You can adjust the frequency in the `entrypoint.sh` file if needed. 
 - It will start processing from the month specified in the `START_MONTH` parameter.
 - It checks if the complete usage data is available for the entire month. If so, it processes the data and sends it to Clazar. If not, it waits until the next run to check again.
@@ -120,16 +140,19 @@ This would create a custom dimension called "pod_hours" calculated as half of th
 - **Per-contract processing**: Each contract is processed individually, so one failing contract doesn't block others from being processed successfully.
 
 ### Subscription Cancellation Is Not Handled
+
 Please note that the script does not handle subscription cancellations. If a subscription is canceled, you will need to manually upload the usage data for that contract and month to Clazar in time. Every marketplace has a grace period for submitting usage data after a subscription ends, so ensure you are aware of those deadlines.
 
 ## Tracking State
 
 The state file stored in S3 tracks:
+
 - Last processed month and last updated timestamp per service configuration
 - List of successfully processed contracts per month per service configuration
 - List of error contracts per month per service configuration
 
 Example state file structure:
+
 ```json
 {
   "Postgres:PROD:pt-HJSv20iWX0": {
@@ -170,5 +193,6 @@ Example state file structure:
 ```
 
 ### Checking Live Logs
+
 The script provides detailed logging. You can monitor the live logs in the SaaS Portal under the resource instance you created. 
 ![Live Logs](images/live-logs.png)

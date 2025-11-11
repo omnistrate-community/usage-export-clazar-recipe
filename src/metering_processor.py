@@ -21,11 +21,12 @@ import requests
 from botocore.exceptions import ClientError, NoCredentialsError
 
 from config import Config, ConfigurationError
+from clazar_client import ClazarClient, ClazarAPIError
 
 
 class MeteringProcessor:
     def __init__(self, bucket_name: str, state_file_path: str = "metering_state.json", 
-                 dry_run: bool = False, access_token: str = None, cloud: str = "aws", 
+                 dry_run: bool = False, clazar_client: ClazarClient = None, cloud: str = "aws", 
                  aws_access_key_id: str = None, aws_secret_access_key: str = None, aws_region: str = None,
                  custom_dimensions: Dict[str, str] = None):
         """
@@ -35,7 +36,7 @@ class MeteringProcessor:
             bucket_name: S3 bucket name containing metering data
             state_file_path: Path to the state file in S3 that tracks last processed months
             dry_run: If True, skip actual API calls and only log payloads
-            access_token: Clazar access token for authentication
+            clazar_client: ClazarClient instance for API interactions
             cloud: Cloud name (e.g., 'aws', 'azure', 'gcp')
             aws_access_key_id: AWS access key ID
             aws_secret_access_key: AWS secret access key
@@ -45,7 +46,7 @@ class MeteringProcessor:
         self.bucket_name = bucket_name
         self.state_file_path = state_file_path
         self.dry_run = dry_run
-        self.access_token = access_token
+        self.clazar_client = clazar_client
         self.cloud = cloud
         self.custom_dimensions = custom_dimensions or {}
         
@@ -752,132 +753,69 @@ class MeteringProcessor:
             }
             contract_records[external_payer_id].append(record)
         
-        headers = {
-            "accept": "application/json",
-            "content-type": "application/json",
-            "Authorization": f"Bearer {self.access_token}" if self.access_token else ""
-        }
-        
-        if not self.access_token and not self.dry_run:
-            self.logger.error("Access token is required for sending data to Clazar")
+        if not self.clazar_client:
+            self.logger.error("Clazar client is required for sending data")
             return False
         
         year, month = start_time.year, start_time.month
         all_success = True
+
+        # Login to Clazar once before sending data to consider expiry of tokens
+        try:
+            self.clazar_client.authenticate()
+        except ClazarAPIError as e:
+            self.logger.error(f"Failed to login to Clazar: {e.message}")
+            return False
         
         # Process each contract separately for better error handling and retry logic
         for contract_id, records in contract_records.items():
-            payload = {"request": records}
             success = False
             
-            for attempt in range(max_retries + 1):
-                try:
-                    if attempt > 0:
-                        # Exponential backoff: 2^attempt seconds
-                        wait_time = 2 ** attempt
-                        self.logger.info(f"Retrying contract {contract_id} (attempt {attempt + 1}/{max_retries + 1}) after {wait_time}s delay")
-                        time.sleep(wait_time)
-                    
-                    self.logger.info(f"Sending {len(records)} metering records to Clazar for contract {contract_id}")
-                    
-                    if self.dry_run:
-                        self.logger.info("DRY RUN MODE: Would send the following payload to Clazar:")
-                        self.logger.info(f"URL: https://api.clazar.io/metering/")
-                        self.logger.info(f"Payload: {json.dumps(payload, indent=2)}")
-                        self.logger.info("DRY RUN MODE: Skipping actual API call")
-                        
-                        # In dry run, mark all contracts as processed
-                        self.mark_contract_month_processed(service_name, environment_type, plan_id, 
-                                                         contract_id, year, month)
-                        success = True
-                        break
-                    
-                    response = requests.post("https://api.clazar.io/metering/", json=payload, headers=headers, timeout=30)
-                    
-                    if response.status_code != 200:
-                        raise requests.RequestException(f"HTTP {response.status_code}: {response.text}")
-                    
-                    response_data = response.json()
-                    if "results" not in response_data:
-                        raise ValueError("Unexpected response format from Clazar API")
-
-                    # Check for errors in the response
-                    has_errors = False
-                    for result in response_data.get("results", []):
-                        if "errors" in result and result["errors"]:
-                            has_errors = True
-                            break
-                        elif "status" in result and result["status"] != "success":
-                            # Log warning but don't treat as error
-                            self.logger.warning(f"Sent data to Clazar with warnings: status={result['status']}. Please check if the dimensions are registered in Clazar.")
-                    
-                    if has_errors:
-                        # Extract error details
-                        errors = []
-                        error_code = "API_ERROR"
-                        error_message = "Unknown error"
-                        
-                        for result in response_data.get("results", []):
-                            if "errors" in result and result["errors"]:
-                                if isinstance(result["errors"], list):
-                                    errors.extend(result["errors"])
-                                else:
-                                    errors.append(str(result["errors"]))
-                                
-                                error_code = result.get('code', 'API_ERROR')
-                                error_message = result.get('message', 'Unknown error')
-                        
-                        if attempt == max_retries:
-                            # Final attempt failed, record as error
-                            self.logger.error(f"Final attempt failed for contract {contract_id}: {error_code} - {error_message}")
-                            self.logger.error(f"Errors: {errors}")
-                            self.mark_contract_month_error(service_name, environment_type, plan_id, 
-                                                         contract_id, year, month, errors, error_code, 
-                                                         error_message, payload, attempt)
-                            all_success = False
-                            break
-                        else:
-                            # Retry on next iteration
-                            self.logger.warning(f"Attempt {attempt + 1} failed for contract {contract_id}: {error_code} - {error_message}")
-                            continue
-                    else:
-                        # Success
-                        self.logger.info(f"Successfully sent data to Clazar for contract {contract_id}")
-                        self.logger.info(f"Response: {response_data}")
-                        
-                        # Remove from error contracts if it was previously failed
-                        self.remove_error_contract(service_name, environment_type, plan_id, 
-                                                 contract_id, year, month)
-                        
-                        # Mark as successfully processed
-                        self.mark_contract_month_processed(service_name, environment_type, plan_id, 
-                                                         contract_id, year, month)
-                        success = True
-                        break
-                        
-                except requests.RequestException as e:
-                    if attempt == max_retries:
-                        self.logger.error(f"Final network error for contract {contract_id}: {e}")
-                        self.mark_contract_month_error(service_name, environment_type, plan_id, 
-                                                     contract_id, year, month, [str(e)], "NETWORK_ERROR", 
-                                                     str(e), payload, attempt)
-                        all_success = False
-                        break
-                    else:
-                        self.logger.warning(f"Network error on attempt {attempt + 1} for contract {contract_id}: {e}")
-                        continue
+            try:
+                self.logger.info(f"Sending {len(records)} metering records to Clazar for contract {contract_id}")
                 
-                except Exception as e:
-                    if attempt == max_retries:
-                        self.logger.error(f"Final unexpected error for contract {contract_id}: {e}")
-                        self.mark_contract_month_error(service_name, environment_type, plan_id, 
-                                                     contract_id, year, month, [str(e)], "UNEXPECTED_ERROR", 
-                                                     str(e), payload, attempt)
-                        all_success = False
-                        break
-                    else:
-                        self.logger.warning(f"Unexpected error on attempt {attempt + 1} for contract {contract_id}: {e}")
-                        continue
+                # Use the Clazar client to send data
+                response_data = self.clazar_client.send_metering_data(records)
+                
+                # Check for errors in the response
+                has_errors, errors, error_code, error_message, warnings = self.clazar_client.check_response_for_errors(response_data)
+                if warnings:
+                    self.logger.warning(f"Clazar returned warnings for contract {contract_id}: {warnings}")
+                
+                if has_errors:
+                    self.logger.error(f"Failed to send data for contract {contract_id}: {error_code} - {error_message}")
+                    self.logger.error(f"Errors: {errors}")
+                    self.mark_contract_month_error(service_name, environment_type, plan_id, 
+                                                 contract_id, year, month, errors, error_code, 
+                                                 error_message, {"request": records}, max_retries)
+                    all_success = False
+                else:
+                    # Success
+                    self.logger.info(f"Successfully sent data to Clazar for contract {contract_id}")
+                    self.logger.info(f"Response: {response_data}")
+                    
+                    # Remove from error contracts if it was previously failed
+                    self.remove_error_contract(service_name, environment_type, plan_id, 
+                                             contract_id, year, month)
+                    
+                    # Mark as successfully processed
+                    self.mark_contract_month_processed(service_name, environment_type, plan_id, 
+                                                     contract_id, year, month)
+                    success = True
+                    
+            except ClazarAPIError as e:
+                self.logger.error(f"Clazar API error for contract {contract_id}: {e.message}")
+                self.mark_contract_month_error(service_name, environment_type, plan_id, 
+                                             contract_id, year, month, [e.message], 
+                                             "API_ERROR", e.message, {"request": records}, max_retries)
+                all_success = False
+                
+            except Exception as e:
+                self.logger.error(f"Unexpected error for contract {contract_id}: {e}")
+                self.mark_contract_month_error(service_name, environment_type, plan_id, 
+                                             contract_id, year, month, [str(e)], 
+                                             "UNEXPECTED_ERROR", str(e), {"request": records}, max_retries)
+                all_success = False
             
             if not success:
                 all_success = False
@@ -910,121 +848,68 @@ class MeteringProcessor:
         self.logger.info(f"Retrying {len(error_contracts)} error contracts for {year}-{month:02d}")
         
         # Define the time window (month boundary)
-        start_time = datetime(year, month, 1)
         last_day = calendar.monthrange(year, month)[1]
-        end_time = datetime(year, month, last_day, 23, 59, 59)
         
         all_success = True
         
         for error_entry in error_contracts:
             contract_id = error_entry.get('contract_id')
             payload = error_entry.get('payload')
-            retry_count = error_entry.get('retry_count', 0)
             
             if not contract_id or not payload:
                 self.logger.warning(f"Skipping error contract with missing data: {error_entry}")
                 continue
             
             # Retry this specific contract
-            headers = {
-                "accept": "application/json",
-                "content-type": "application/json",
-                "Authorization": f"Bearer {self.access_token}" if self.access_token else ""
-            }
-            
             success = False
-            current_retry = retry_count
             
-            while current_retry < max_retries:
-                current_retry += 1
+            try:
+                # Extract records from payload
+                records = payload.get('request', [])
                 
-                try:
-                    # Exponential backoff
-                    wait_time = 2 ** current_retry
-                    self.logger.info(f"Retrying contract {contract_id} (retry {current_retry}/{max_retries}) after {wait_time}s delay")
-                    time.sleep(wait_time)
-                    
-                    if self.dry_run:
-                        self.logger.info("DRY RUN MODE: Would retry sending the following payload to Clazar:")
-                        self.logger.info(f"URL: https://api.clazar.io/metering/")
-                        self.logger.info(f"Payload: {json.dumps(payload, indent=2)}")
-                        
-                        # In dry run, remove from error and mark as processed
-                        self.remove_error_contract(service_name, environment_type, plan_id, 
-                                                 contract_id, year, month)
-                        self.mark_contract_month_processed(service_name, environment_type, plan_id, 
-                                                         contract_id, year, month)
-                        success = True
-                        break
-
-                    response = requests.post("https://api.clazar.io/metering/", json=payload, headers=headers, timeout=30)
-
-                    if response.status_code != 200:
-                        raise requests.RequestException(f"HTTP {response.status_code}: {response.text}")
-                    
-                    response_data = response.json()
-                    if "results" not in response_data:
-                        raise ValueError("Unexpected response format from Clazar API")
-
-                    # Check for errors in the response
-                    has_errors = False
-                    for result in response_data.get("results", []):
-                        if "errors" in result and result["errors"]:
-                            has_errors = True
-                            break
-                    
-                    if has_errors:
-                        # Update retry count but continue trying
-                        errors = []
-                        error_code = "API_ERROR"
-                        error_message = "Unknown error"
-                        
-                        for result in response_data.get("results", []):
-                            if "errors" in result and result["errors"]:
-                                if isinstance(result["errors"], list):
-                                    errors.extend(result["errors"])
-                                else:
-                                    errors.append(str(result["errors"]))
-                                
-                                error_code = result.get('code', 'API_ERROR')
-                                error_message = result.get('message', 'Unknown error')
-                        
-                        self.logger.warning(f"Retry {current_retry} failed for contract {contract_id}: {error_code} - {error_message}")
-                        
-                        # Update error entry with new retry count
-                        self.mark_contract_month_error(service_name, environment_type, plan_id, 
-                                                     contract_id, year, month, errors, error_code, 
-                                                     error_message, payload, current_retry)
-                        
-                        if current_retry >= max_retries:
-                            self.logger.error(f"Max retries reached for contract {contract_id}")
-                            all_success = False
-                            break
-                        continue
-                    else:
-                        # Success - remove from error contracts and mark as processed
-                        self.logger.info(f"Successfully retried contract {contract_id} on attempt {current_retry}")
-                        self.logger.info(f"Response: {response_data}")
-                        
-                        self.remove_error_contract(service_name, environment_type, plan_id, 
-                                                 contract_id, year, month)
-                        self.mark_contract_month_processed(service_name, environment_type, plan_id, 
-                                                         contract_id, year, month)
-                        success = True
-                        break
-                        
-                except Exception as e:
-                    self.logger.warning(f"Retry {current_retry} error for contract {contract_id}: {e}")
+                self.logger.info(f"Retrying contract {contract_id} for {year}-{month:02d}")
+                
+                # Use the Clazar client to send data (it handles retries internally)
+                response_data = self.clazar_client.send_metering_data(records)
+                
+                # Check for errors in the response
+                has_errors, errors, error_code, error_message, warnings = self.clazar_client.check_response_for_errors(response_data)
+                if warnings:
+                    self.logger.warning(f"Clazar returned warnings for contract {contract_id}: {warnings}")
+                
+                if has_errors:
+                    self.logger.error(f"Retry failed for contract {contract_id}: {error_code} - {error_message}")
+                    self.logger.error(f"Errors: {errors}")
                     
                     # Update error entry with new retry count
                     self.mark_contract_month_error(service_name, environment_type, plan_id, 
-                                                 contract_id, year, month, [str(e)], "RETRY_ERROR", 
-                                                 str(e), payload, current_retry)
+                                                 contract_id, year, month, errors, error_code, 
+                                                 error_message, payload, max_retries)
+                    all_success = False
+                else:
+                    # Success - remove from error contracts and mark as processed
+                    self.logger.info(f"Successfully retried contract {contract_id}")
+                    self.logger.info(f"Response: {response_data}")
                     
-                    if current_retry >= max_retries:
-                        self.logger.error(f"Max retries reached for contract {contract_id} due to error: {e}")
-                        all_success = False
-                        break
+                    self.remove_error_contract(service_name, environment_type, plan_id, 
+                                             contract_id, year, month)
+                    self.mark_contract_month_processed(service_name, environment_type, plan_id, 
+                                                     contract_id, year, month)
+                    success = True
+                    
+            except ClazarAPIError as e:
+                self.logger.error(f"Clazar API error retrying contract {contract_id}: {e.message}")
+                self.mark_contract_month_error(service_name, environment_type, plan_id, 
+                                             contract_id, year, month, [e.message], "RETRY_ERROR", 
+                                             e.message, payload, max_retries)
+                all_success = False
+                
+            except Exception as e:
+                self.logger.error(f"Unexpected error retrying contract {contract_id}: {e}")
+                self.mark_contract_month_error(service_name, environment_type, plan_id, 
+                                             contract_id, year, month, [str(e)], "RETRY_ERROR", 
+                                             str(e), payload, max_retries)
+                all_success = False
             
             if not success:
                 all_success = False
@@ -1157,26 +1042,17 @@ def main_processing():
         sys.exit(1)
     
     try:
-        # Authenticate with Clazar
-        url = "https://api.clazar.io/authenticate/"
-
-        payload = {
-            "client_id": config.clazar_client_id,
-            "client_secret": config.clazar_client_secret
-        }
-        headers = {
-            "accept": "application/json",
-            "Content-Type": "application/json"
-        }
-
-        response = requests.post(url, json=payload, headers=headers)
-        if response.status_code != 200:
-            print(f"Error authenticating with Clazar: {response.status_code} - {response.text}")
-            sys.exit(1)
-
-        access_token = response.json().get("access_token")
-        if not access_token:
-            print("Error: No access token received from Clazar")
+        # Initialize Clazar client and authenticate
+        clazar_client = ClazarClient(
+            client_id=config.clazar_client_id,
+            client_secret=config.clazar_client_secret,
+            dry_run=config.dry_run
+        )
+        
+        try:
+            clazar_client.authenticate()
+        except ClazarAPIError as e:
+            print(f"Error authenticating with Clazar: {e.message}")
             sys.exit(1)
 
         # Initialize the processor
@@ -1184,7 +1060,7 @@ def main_processing():
             bucket_name=config.bucket_name, 
             state_file_path=config.state_file_path,
             dry_run=config.dry_run, 
-            access_token=access_token, 
+            clazar_client=clazar_client, 
             cloud=config.clazar_cloud,
             aws_access_key_id=config.aws_access_key_id,
             aws_secret_access_key=config.aws_secret_access_key,
