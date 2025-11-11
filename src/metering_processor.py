@@ -622,6 +622,3 @@ def main():
             logging.info("Waiting 5 minutes before retry...")
             time.sleep(300)
 
-
-if __name__ == "__main__":
-    main()

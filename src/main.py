@@ -43,6 +43,11 @@ def main():
     """Start both services and wait for them."""
     from src.config import Config
     config = Config()
+
+    config.validate_aws_credentials()
+    config.validate_custom_dimensions()
+    config.validate_required_config()
+    config.validate_start_month()
     
     logger.info("=" * 80)
     logger.info("Starting services")
