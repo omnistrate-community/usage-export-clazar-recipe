@@ -182,7 +182,7 @@ class TestClazarIntegration(unittest.TestCase):
         logger.info("✓ Authentication successful")
         
         # Calculate start_time and end_time for the last second
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         end_time = now.replace(microsecond=0)  # Current second
         start_time = end_time - timedelta(seconds=1)  # One second ago
         
@@ -220,6 +220,65 @@ class TestClazarIntegration(unittest.TestCase):
         self.assertGreater(len(errors), 0, "Expected error list to be non-empty")
         
         logger.info("✓ Invalid dimension correctly rejected by Clazar")
+        logger.info(f"  Error code: {error_code}")
+        logger.info(f"  Error message: {error_message}")
+        logger.info(f"  Errors: {errors}")
+    
+    def test_send_metering_data_with_invalid_contract_id(self):
+        """Test that sending metering data with invalid contract ID returns an error."""
+        logger.info("Testing metering data with invalid contract ID...")
+        
+        # Create client and authenticate
+        logger.info("Initializing Clazar client...")
+        client = ClazarClient(client_id=self.client_id, client_secret=self.client_secret)
+        
+        logger.info("Authenticating...")
+        client.authenticate()
+        logger.info("✓ Authentication successful")
+        
+        # Get the first custom dimension name from config
+        dimension_name = list(self.config.custom_dimensions.keys())[0]
+        logger.info(f"Using dimension: {dimension_name}")
+        
+        # Calculate start_time and end_time for the last second
+        now = datetime.now(timezone.utc)
+        end_time = now.replace(microsecond=0)  # Current second
+        start_time = end_time - timedelta(seconds=1)  # One second ago
+        
+        # Create metering record with invalid contract ID
+        invalid_contract_id = "invalid-contract-" + str(uuid.uuid4())
+        metering_record = {
+            "cloud": self.config.clazar_cloud,
+            "contract_id": invalid_contract_id,
+            "dimension": dimension_name,
+            "end_time": end_time.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "quantity": "1",
+            "start_time": start_time.strftime("%Y-%m-%dT%H:%M:%SZ")
+        }
+        
+        logger.info(f"Sending metering record with invalid contract ID:")
+        logger.info(f"  Cloud: {metering_record['cloud']}")
+        logger.info(f"  Invalid Contract ID: {metering_record['contract_id']}")
+        logger.info(f"  Dimension: {metering_record['dimension']}")
+        logger.info(f"  Quantity: {metering_record['quantity']}")
+        logger.info(f"  Start time: {metering_record['start_time']}")
+        logger.info(f"  End time: {metering_record['end_time']}")
+        
+        # Send the metering data
+        response = client.send_metering_data([metering_record])
+        
+        # Validate response exists
+        self.assertIsNotNone(response, "No response received from Clazar")
+        self.assertIn("results", response, "Response missing 'results' field")
+        
+        # Check for errors - we expect errors for invalid contract ID
+        has_errors, errors, error_code, error_message = client.check_response_for_errors(response)
+        
+        # Assert that we got an error as expected
+        self.assertTrue(has_errors, "Expected error for invalid contract ID but none was returned")
+        self.assertGreater(len(errors), 0, "Expected error list to be non-empty")
+        
+        logger.info("✓ Invalid contract ID correctly rejected by Clazar")
         logger.info(f"  Error code: {error_code}")
         logger.info(f"  Error message: {error_message}")
         logger.info(f"  Errors: {errors}")
