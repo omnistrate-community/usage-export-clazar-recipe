@@ -20,9 +20,6 @@ from botocore.exceptions import ClientError, NoCredentialsError
 from config import Config, ConfigurationError
 from clazar_client import ClazarClient, ClazarAPIError
 from state_manager import StateManager, StateManagerError
-
-from config import Config
-
 class MeteringProcessor:
     def __init__(self, config: Config, state_manager: StateManager, clazar_client: ClazarClient = None):
         """
