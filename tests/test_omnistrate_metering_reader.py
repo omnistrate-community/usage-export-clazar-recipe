@@ -28,7 +28,7 @@ class TestOmnistrateMeteringReader(unittest.TestCase):
         os.environ['AWS_ACCESS_KEY_ID'] = 'test_access_key'
         os.environ['AWS_SECRET_ACCESS_KEY'] = 'test_secret_key'
         os.environ['AWS_REGION'] = 'us-east-1'
-        os.environ['S3_BUCKET_NAME'] = 'test-bucket'
+        os.environ['AWS_S3_BUCKET_NAME'] = 'test-bucket'
         os.environ['CLAZAR_CLIENT_ID'] = 'test_client_id'
         os.environ['CLAZAR_CLIENT_SECRET'] = 'test_client_secret'
         os.environ['CLAZAR_CLOUD'] = 'aws'
@@ -44,7 +44,7 @@ class TestOmnistrateMeteringReader(unittest.TestCase):
         """Clean up after each test."""
         env_vars = [
             'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_REGION',
-            'S3_BUCKET_NAME', 'CLAZAR_CLIENT_ID', 'CLAZAR_CLIENT_SECRET',
+            'AWS_S3_BUCKET_NAME', 'CLAZAR_CLIENT_ID', 'CLAZAR_CLIENT_SECRET',
             'CLAZAR_CLOUD', 'SERVICE_NAME', 'ENVIRONMENT_TYPE', 'PLAN_ID',
             'DIMENSION1_NAME', 'DIMENSION1_FORMULA',
         ]

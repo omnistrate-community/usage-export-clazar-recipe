@@ -21,7 +21,7 @@ class TestStateManager(unittest.TestCase):
         os.environ['AWS_ACCESS_KEY_ID'] = 'test_access_key'
         os.environ['AWS_SECRET_ACCESS_KEY'] = 'test_secret_key'
         os.environ['AWS_REGION'] = 'us-west-2'
-        os.environ['S3_BUCKET_NAME'] = 'test-bucket'
+        os.environ['AWS_S3_BUCKET_NAME'] = 'test-bucket'
         os.environ['SERVICE_NAME'] = 'Postgres'
         os.environ['ENVIRONMENT_TYPE'] = 'PROD'
         os.environ['PLAN_ID'] = 'test-plan-123'
@@ -44,7 +44,7 @@ class TestStateManager(unittest.TestCase):
         """Clean up test fixtures."""
         # Clean up environment variables
         env_vars = ['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_REGION',
-                    'S3_BUCKET_NAME', 'SERVICE_NAME', 'ENVIRONMENT_TYPE', 'PLAN_ID',
+                    'AWS_S3_BUCKET_NAME', 'SERVICE_NAME', 'ENVIRONMENT_TYPE', 'PLAN_ID',
                     'DIMENSION1_NAME', 'DIMENSION1_FORMULA', 'CLAZAR_CLIENT_ID',
                     'CLAZAR_CLIENT_SECRET']
         for var in env_vars:
