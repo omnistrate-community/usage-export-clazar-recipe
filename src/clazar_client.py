@@ -9,7 +9,7 @@ including authentication and sending metering data.
 import json
 import logging
 import time
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 import requests
 
@@ -213,7 +213,7 @@ class ClazarClient:
         # Should not reach here, but just in case
         raise ClazarAPIError(f"Failed to send metering data after {max_retries + 1} attempts")
     
-    def check_response_for_errors(self, response_data: Dict) -> Tuple[bool, List[str], str, str]:
+    def check_response_for_errors(self, response_data: Dict) -> Tuple[bool, List[Any], str, str, List[Dict[str, Any]]]:
         """
         Check Clazar API response for errors.
         
@@ -221,12 +221,13 @@ class ClazarClient:
             response_data: Response data from Clazar API
             
         Returns:
-            Tuple of (has_errors, error_list, error_code, error_message)
+            Tuple of (has_errors, error_list, error_code, error_message, warnings)
         """
         has_errors = False
-        errors = []
+        errors: List[Any] = []
         error_code = "API_ERROR"
         error_message = "Unknown error"
+        warnings: List[Dict[str, Any]] = []
         
         for result in response_data.get("results", []):
             if "errors" in result and result["errors"]:
@@ -239,10 +240,11 @@ class ClazarClient:
                 error_code = result.get('code', 'API_ERROR')
                 error_message = result.get('message', 'Unknown error')
             elif "status" in result and result["status"] != "success":
+                warnings.append(result)
                 # Log warning but don't treat as error
                 self.logger.warning(
                     f"Sent data to Clazar with warnings: status={result['status']}. "
                     "Please check if the dimensions are registered in Clazar."
                 )
         
-        return has_errors, errors, error_code, error_message
+        return has_errors, errors, error_code, error_message, warnings

@@ -157,7 +157,9 @@ class TestClazarIntegration(unittest.TestCase):
         self.assertIn("results", response, "Response missing 'results' field")
         
         # Check for errors
-        has_errors, errors, error_code, error_message = client.check_response_for_errors(response)
+        has_errors, errors, error_code, error_message, warnings = client.check_response_for_errors(response)
+        if warnings:
+            logger.warning(f"Clazar returned warnings: {warnings}")
         
         if has_errors:
             logger.error(f"✗ Clazar API returned errors:")
@@ -212,17 +214,26 @@ class TestClazarIntegration(unittest.TestCase):
         self.assertIsNotNone(response, "No response received from Clazar")
         self.assertIn("results", response, "Response missing 'results' field")
         
-        # Check for errors - we expect errors for invalid dimension
-        has_errors, errors, error_code, error_message = client.check_response_for_errors(response)
+        # Check for errors - we expect warnings for invalid dimension
+        has_errors, errors, error_code, error_message, warnings = client.check_response_for_errors(response)
         
-        # Assert that we got an error as expected
-        self.assertTrue(has_errors, "Expected error for invalid dimension but none was returned")
-        self.assertGreater(len(errors), 0, "Expected error list to be non-empty")
+        self.assertFalse(has_errors, "Invalid dimension response should produce warnings, not errors")
+        self.assertEqual(len(errors), 0, "Did not expect errors for invalid dimension test")
+        self.assertGreater(len(warnings), 0, "Expected warning entries for invalid dimension")
+        non_success_warnings = [
+            warning for warning in warnings
+            if warning.get("status", "success").lower() != "success"
+        ]
+        self.assertGreater(len(non_success_warnings), 0, "Expected at least one non-success warning entry")
+        for warning in non_success_warnings:
+            self.assertEqual(
+                warning.get("dimension"),
+                invalid_dimension,
+                "Warning response did not reference the invalid dimension"
+            )
         
-        logger.info("✓ Invalid dimension correctly rejected by Clazar")
-        logger.info(f"  Error code: {error_code}")
-        logger.info(f"  Error message: {error_message}")
-        logger.info(f"  Errors: {errors}")
+        logger.info("✓ Invalid dimension correctly rejected by Clazar with warnings")
+        logger.info(f"  Warnings: {warnings}")
     
     def test_send_metering_data_with_invalid_contract_id(self):
         """Test that sending metering data with invalid contract ID returns an error."""
@@ -272,7 +283,7 @@ class TestClazarIntegration(unittest.TestCase):
         self.assertIn("results", response, "Response missing 'results' field")
         
         # Check for errors - we expect errors for invalid contract ID
-        has_errors, errors, error_code, error_message = client.check_response_for_errors(response)
+        has_errors, errors, error_code, error_message, warnings = client.check_response_for_errors(response)
         
         # Assert that we got an error as expected
         self.assertTrue(has_errors, "Expected error for invalid contract ID but none was returned")
@@ -282,6 +293,8 @@ class TestClazarIntegration(unittest.TestCase):
         logger.info(f"  Error code: {error_code}")
         logger.info(f"  Error message: {error_message}")
         logger.info(f"  Errors: {errors}")
+        if warnings:
+            logger.warning(f"  Unexpected warnings: {warnings}")
 
 
 if __name__ == "__main__":

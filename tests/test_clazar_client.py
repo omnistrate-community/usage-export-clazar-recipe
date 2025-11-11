@@ -317,10 +317,11 @@ class TestClazarClient(unittest.TestCase):
             ]
         }
         
-        has_errors, errors, error_code, error_message = client.check_response_for_errors(response_data)
+        has_errors, errors, error_code, error_message, warnings = client.check_response_for_errors(response_data)
         
         self.assertFalse(has_errors)
         self.assertEqual(errors, [])
+        self.assertEqual(warnings, [])
     
     def test_check_response_for_errors_with_errors(self):
         """Test checking response with errors"""
@@ -337,7 +338,7 @@ class TestClazarClient(unittest.TestCase):
             ]
         }
         
-        has_errors, errors, error_code, error_message = client.check_response_for_errors(response_data)
+        has_errors, errors, error_code, error_message, warnings = client.check_response_for_errors(response_data)
         
         self.assertTrue(has_errors)
         self.assertEqual(len(errors), 2)
@@ -345,6 +346,7 @@ class TestClazarClient(unittest.TestCase):
         self.assertIn("Invalid quantity", errors)
         self.assertEqual(error_code, "VALIDATION_ERROR")
         self.assertEqual(error_message, "Validation failed")
+        self.assertEqual(warnings, [])
     
     def test_check_response_for_errors_with_string_error(self):
         """Test checking response with string error"""
@@ -361,11 +363,12 @@ class TestClazarClient(unittest.TestCase):
             ]
         }
         
-        has_errors, errors, error_code, error_message = client.check_response_for_errors(response_data)
+        has_errors, errors, error_code, error_message, warnings = client.check_response_for_errors(response_data)
         
         self.assertTrue(has_errors)
         self.assertEqual(len(errors), 1)
         self.assertEqual(errors[0], "Single error message")
+        self.assertEqual(warnings, [])
     
     def test_check_response_for_errors_with_warnings(self):
         """Test checking response with warnings (non-success status but no errors)"""
@@ -380,11 +383,13 @@ class TestClazarClient(unittest.TestCase):
             ]
         }
         
-        has_errors, errors, error_code, error_message = client.check_response_for_errors(response_data)
+        has_errors, errors, error_code, error_message, warnings = client.check_response_for_errors(response_data)
         
         # Warnings should not be treated as errors
         self.assertFalse(has_errors)
         self.assertEqual(errors, [])
+        self.assertEqual(len(warnings), 1)
+        self.assertEqual(warnings[0]["status"], "warning")
     
     def test_check_response_for_errors_multiple_results(self):
         """Test checking response with multiple results, some with errors"""
@@ -402,11 +407,12 @@ class TestClazarClient(unittest.TestCase):
             ]
         }
         
-        has_errors, errors, error_code, error_message = client.check_response_for_errors(response_data)
+        has_errors, errors, error_code, error_message, warnings = client.check_response_for_errors(response_data)
         
         self.assertTrue(has_errors)
         self.assertIn("Error in record 2", errors)
         self.assertEqual(error_code, "DATA_ERROR")
+        self.assertEqual(warnings, [])
 
 
 class TestClazarAPIError(unittest.TestCase):

@@ -778,7 +778,9 @@ class MeteringProcessor:
                 response_data = self.clazar_client.send_metering_data(records)
                 
                 # Check for errors in the response
-                has_errors, errors, error_code, error_message = self.clazar_client.check_response_for_errors(response_data)
+                has_errors, errors, error_code, error_message, warnings = self.clazar_client.check_response_for_errors(response_data)
+                if warnings:
+                    self.logger.warning(f"Clazar returned warnings for contract {contract_id}: {warnings}")
                 
                 if has_errors:
                     self.logger.error(f"Failed to send data for contract {contract_id}: {error_code} - {error_message}")
@@ -871,7 +873,9 @@ class MeteringProcessor:
                 response_data = self.clazar_client.send_metering_data(records)
                 
                 # Check for errors in the response
-                has_errors, errors, error_code, error_message = self.clazar_client.check_response_for_errors(response_data)
+                has_errors, errors, error_code, error_message, warnings = self.clazar_client.check_response_for_errors(response_data)
+                if warnings:
+                    self.logger.warning(f"Clazar returned warnings for contract {contract_id}: {warnings}")
                 
                 if has_errors:
                     self.logger.error(f"Retry failed for contract {contract_id}: {error_code} - {error_message}")
