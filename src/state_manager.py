@@ -435,20 +435,3 @@ class StateManager:
         state[service_key]['last_updated'] = datetime.now(timezone.utc).isoformat() + 'Z'
 
         self.save_state(state)
-
-    def get_latest_month_with_complete_usage_data(self, service_name: str, environment_type: str, 
-                                plan_id: str) -> Optional[Tuple[int, int]]:
-        """
-        Get the latest month for which complete usage data is available.
-        
-        Args:
-            service_name: Name of the service
-            environment_type: Environment type
-            plan_id: Plan ID
-            
-        Returns:
-            Tuple of (year, month) for last processed month, or None if never processed
-        """
-        return self.metering_reader.get_latest_month_with_complete_usage_data(
-            service_name, environment_type, plan_id
-        )

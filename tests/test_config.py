@@ -81,7 +81,7 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(config.aws_access_key_id, 'test_key')
         self.assertEqual(config.aws_secret_access_key, 'test_secret')
         self.assertEqual(config.aws_region, 'us-west-2')
-        self.assertEqual(config.bucket_name, 'test-bucket')
+        self.assertEqual(config.aws_s3_bucket, 'test-bucket')
         self.assertEqual(config.clazar_client_id, 'client123')
         self.assertEqual(config.clazar_client_secret, 'secret456')
         self.assertEqual(config.clazar_cloud, 'azure')

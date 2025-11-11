@@ -61,7 +61,7 @@ class TestStateManager(unittest.TestCase):
         config = Config()
         state_manager = StateManager(config=config)
         
-        self.assertEqual(state_manager.bucket_name, self.aws_s3_bucket)
+        self.assertEqual(state_manager.aws_s3_bucket, self.aws_s3_bucket)
         self.assertEqual(state_manager.file_path, self.state_file_path)
         # Verify StateManager has a metering_reader instance
         self.assertIsNotNone(state_manager.metering_reader)
