@@ -32,7 +32,7 @@ class StateManager:
         """
         if not config:
             raise StateManagerError("Configuration object is required to initialize StateManager.")
-        if not config.aws_s3_bucket:
+        if not config.bucket_name:
             raise StateManagerError("AWS S3 bucket name is not configured.")
         if not config.environment_type:
             raise StateManagerError("Environment type is not configured.")
@@ -45,7 +45,7 @@ class StateManager:
         if not config.aws_region:
             raise StateManagerError("AWS region is not configured.")
 
-        self.bucket_name = config.aws_s3_bucket
+        self.bucket_name = config.bucket_name
         self.file_path = f"clazar/{config.service_name}-{config.environment_type}-{config.plan_id}-export_state.json"
         
         # Configure AWS credentials and create S3 client
@@ -242,7 +242,7 @@ class StateManager:
     def mark_contract_month_error(self, service_name: str, environment_type: str, 
                                  plan_id: str, contract_id: str, year: int, month: int,
                                  errors: List[str], code: str = None, message: str = None,
-                                 payload: Dict = None, retry_count: int = 0):
+                                 payload: Dict = None, retry_count: int = 5):
         """
         Mark a specific contract for a month as having errors.
         

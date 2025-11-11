@@ -9,6 +9,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from state_manager import StateManager, StateManagerError
+from config import Config
 
 
 class TestStateManager(unittest.TestCase):
@@ -16,30 +17,49 @@ class TestStateManager(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
+        # Set required environment variables for Config
+        os.environ['AWS_ACCESS_KEY_ID'] = 'test_access_key'
+        os.environ['AWS_SECRET_ACCESS_KEY'] = 'test_secret_key'
+        os.environ['AWS_REGION'] = 'us-west-2'
+        os.environ['S3_BUCKET_NAME'] = 'test-bucket'
+        os.environ['SERVICE_NAME'] = 'Postgres'
+        os.environ['ENVIRONMENT_TYPE'] = 'PROD'
+        os.environ['PLAN_ID'] = 'test-plan-123'
+        os.environ['DIMENSION1_NAME'] = 'test_dimension'
+        os.environ['DIMENSION1_FORMULA'] = 'test_formula'
+        os.environ['CLAZAR_CLIENT_ID'] = 'test_client_id'
+        os.environ['CLAZAR_CLIENT_SECRET'] = 'test_client_secret'
+        
         self.bucket_name = "test-bucket"
-        self.state_file_path = "test_state.json"
+        self.state_file_path = "clazar/Postgres-PROD-test-plan-123-export_state.json"
         self.aws_access_key_id = "test_access_key"
         self.aws_secret_access_key = "test_secret_key"
         self.aws_region = "us-west-2"
         
         # Create mock S3 client
         self.mock_s3_client = Mock()
+    
+    def tearDown(self):
+        """Clean up test fixtures."""
+        # Clean up environment variables
+        env_vars = ['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_REGION',
+                    'S3_BUCKET_NAME', 'SERVICE_NAME', 'ENVIRONMENT_TYPE', 'PLAN_ID',
+                    'DIMENSION1_NAME', 'DIMENSION1_FORMULA', 'CLAZAR_CLIENT_ID',
+                    'CLAZAR_CLIENT_SECRET']
+        for var in env_vars:
+            if var in os.environ:
+                del os.environ[var]
         
     @patch('state_manager.boto3.client')
     def test_init(self, mock_boto_client):
         """Test StateManager initialization."""
         mock_boto_client.return_value = self.mock_s3_client
         
-        state_manager = StateManager(
-            bucket_name=self.bucket_name,
-            state_file_path=self.state_file_path,
-            aws_access_key_id=self.aws_access_key_id,
-            aws_secret_access_key=self.aws_secret_access_key,
-            aws_region=self.aws_region
-        )
+        config = Config()
+        state_manager = StateManager(config=config)
         
         self.assertEqual(state_manager.bucket_name, self.bucket_name)
-        self.assertEqual(state_manager.state_file_path, self.state_file_path)
+        self.assertEqual(state_manager.file_path, self.state_file_path)
         mock_boto_client.assert_called_once()
         
     @patch('state_manager.boto3.client')
@@ -53,13 +73,8 @@ class TestStateManager(unittest.TestCase):
         }
         self.mock_s3_client.put_object.return_value = {}
         
-        state_manager = StateManager(
-            bucket_name=self.bucket_name,
-            state_file_path=self.state_file_path,
-            aws_access_key_id=self.aws_access_key_id,
-            aws_secret_access_key=self.aws_secret_access_key,
-            aws_region=self.aws_region
-        )
+        config = Config()
+        state_manager = StateManager(config=config)
         
         # Should not raise exception
         state_manager.validate_access()
@@ -75,13 +90,8 @@ class TestStateManager(unittest.TestCase):
             'GetObject'
         )
         
-        state_manager = StateManager(
-            bucket_name=self.bucket_name,
-            state_file_path=self.state_file_path,
-            aws_access_key_id=self.aws_access_key_id,
-            aws_secret_access_key=self.aws_secret_access_key,
-            aws_region=self.aws_region
-        )
+        config = Config()
+        state_manager = StateManager(config=config)
         
         # Should raise StateManagerError
         with self.assertRaises(StateManagerError):
@@ -97,10 +107,8 @@ class TestStateManager(unittest.TestCase):
             'Body': MagicMock(read=lambda: json.dumps(test_state).encode('utf-8'))
         }
         
-        state_manager = StateManager(
-            bucket_name=self.bucket_name,
-            state_file_path=self.state_file_path
-        )
+        config = Config()
+        state_manager = StateManager(config=config)
         
         state = state_manager.load_state()
         self.assertEqual(state, test_state)
@@ -115,10 +123,8 @@ class TestStateManager(unittest.TestCase):
             'GetObject'
         )
         
-        state_manager = StateManager(
-            bucket_name=self.bucket_name,
-            state_file_path=self.state_file_path
-        )
+        config = Config()
+        state_manager = StateManager(config=config)
         
         state = state_manager.load_state()
         self.assertEqual(state, {})
@@ -128,10 +134,8 @@ class TestStateManager(unittest.TestCase):
         """Test saving state."""
         mock_boto_client.return_value = self.mock_s3_client
         
-        state_manager = StateManager(
-            bucket_name=self.bucket_name,
-            state_file_path=self.state_file_path
-        )
+        config = Config()
+        state_manager = StateManager(config=config)
         
         test_state = {"service1": {"last_processed_month": "2025-01"}}
         state_manager.save_state(test_state)
@@ -146,10 +150,8 @@ class TestStateManager(unittest.TestCase):
         """Test service key generation."""
         mock_boto_client.return_value = self.mock_s3_client
         
-        state_manager = StateManager(
-            bucket_name=self.bucket_name,
-            state_file_path=self.state_file_path
-        )
+        config = Config()
+        state_manager = StateManager(config=config)
         
         key = state_manager.get_service_key("Postgres", "PROD", "plan-123")
         self.assertEqual(key, "Postgres:PROD:plan-123")
@@ -159,10 +161,8 @@ class TestStateManager(unittest.TestCase):
         """Test month key generation."""
         mock_boto_client.return_value = self.mock_s3_client
         
-        state_manager = StateManager(
-            bucket_name=self.bucket_name,
-            state_file_path=self.state_file_path
-        )
+        config = Config()
+        state_manager = StateManager(config=config)
         
         key = state_manager.get_month_key(2025, 1)
         self.assertEqual(key, "2025-01")

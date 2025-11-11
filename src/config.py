@@ -30,7 +30,7 @@ class Config:
         self.aws_access_key_id = os.getenv('AWS_ACCESS_KEY_ID')
         self.aws_secret_access_key = os.getenv('AWS_SECRET_ACCESS_KEY')
         self.aws_region = os.getenv('AWS_REGION')
-        self.bucket_name = os.getenv('S3_BUCKET_NAME', 'omnistrate-usage-metering-export-demo')
+        self.aws_s3_bucket = os.getenv('S3_BUCKET_NAME', 'omnistrate-usage-metering-export-demo')
         
     def _load_clazar_config(self):
         """Load and validate Clazar configuration."""
@@ -43,7 +43,6 @@ class Config:
         self.service_name = os.getenv('SERVICE_NAME', 'Postgres')
         self.environment_type = os.getenv('ENVIRONMENT_TYPE', 'PROD')
         self.plan_id = os.getenv('PLAN_ID', 'pt-HJSv20iWX0')
-        self.max_retries = int(os.getenv('MAX_RETRIES', '5'))
         self.start_month = os.getenv('START_MONTH', '2025-01')
         self.dry_run = os.getenv('DRY_RUN', 'false').lower() in ('true', '1', 'yes')
         
@@ -149,16 +148,6 @@ class Config:
                 )
         return 2025, 1  # Default start month
     
-    def validate_max_retries(self):
-        """
-        Validate that max_retries is a positive integer.
-        
-        Raises:
-            ConfigurationError: If max_retries is invalid
-        """
-        if self.max_retries < 1:
-            raise ConfigurationError("MAX_RETRIES must be a positive integer")
-    
     def validate_all(self):
         """
         Run all validation checks.
@@ -170,7 +159,6 @@ class Config:
         self.validate_aws_credentials()
         self.validate_custom_dimensions()
         self.validate_start_month()
-        self.validate_max_retries()
     
     def print_summary(self):
         """Print a summary of the configuration (without sensitive data)."""
@@ -180,7 +168,6 @@ class Config:
         print(f"  Service: {self.service_name}")
         print(f"  Environment: {self.environment_type}")
         print(f"  Plan ID: {self.plan_id}")
-        print(f"  Max Retries: {self.max_retries}")
         print(f"  Start Month: {self.start_month}")
         print(f"  Dry Run: {self.dry_run}")
         print(f"  Clazar Cloud: {self.clazar_cloud}")

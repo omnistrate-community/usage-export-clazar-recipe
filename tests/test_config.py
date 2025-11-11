@@ -24,7 +24,7 @@ class TestConfig(unittest.TestCase):
             'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_REGION',
             'S3_BUCKET_NAME', 'CLAZAR_CLIENT_ID', 'CLAZAR_CLIENT_SECRET',
             'CLAZAR_CLOUD', 'SERVICE_NAME', 'ENVIRONMENT_TYPE', 'PLAN_ID',
-            'MAX_RETRIES', 'START_MONTH', 'DRY_RUN',
+            'START_MONTH', 'DRY_RUN',
             'DIMENSION1_NAME', 'DIMENSION1_FORMULA',
             'DIMENSION2_NAME', 'DIMENSION2_FORMULA',
             'DIMENSION3_NAME', 'DIMENSION3_FORMULA',
@@ -55,7 +55,6 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(config.service_name, 'Postgres')
         self.assertEqual(config.environment_type, 'PROD')
         self.assertEqual(config.plan_id, 'pt-HJSv20iWX0')
-        self.assertEqual(config.max_retries, 5)
         self.assertEqual(config.start_month, '2025-01')
         self.assertFalse(config.dry_run)
         # Should have the default dimension from setUp
@@ -74,7 +73,6 @@ class TestConfig(unittest.TestCase):
         os.environ['SERVICE_NAME'] = 'MySQL'
         os.environ['ENVIRONMENT_TYPE'] = 'DEV'
         os.environ['PLAN_ID'] = 'plan-xyz'
-        os.environ['MAX_RETRIES'] = '10'
         os.environ['START_MONTH'] = '2024-06'
         os.environ['DRY_RUN'] = 'true'
         
@@ -90,7 +88,6 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(config.service_name, 'MySQL')
         self.assertEqual(config.environment_type, 'DEV')
         self.assertEqual(config.plan_id, 'plan-xyz')
-        self.assertEqual(config.max_retries, 10)
         self.assertEqual(config.start_month, '2024-06')
         self.assertTrue(config.dry_run)
 
@@ -185,6 +182,7 @@ class TestConfig(unittest.TestCase):
         """Test that validate_aws_credentials passes with valid credentials."""
         os.environ['AWS_ACCESS_KEY_ID'] = 'test_key'
         os.environ['AWS_SECRET_ACCESS_KEY'] = 'test_secret'
+        os.environ['AWS_REGION'] = 'us-west-2'
         
         config = Config()
         # Should not raise an exception
@@ -297,38 +295,15 @@ class TestConfig(unittest.TestCase):
                 config.validate_start_month()
             del os.environ['START_MONTH']
 
-    def test_validate_max_retries_success(self):
-        """Test that validate_max_retries passes with positive integers."""
-        for value in ['1', '5', '10', '100']:
-            os.environ['MAX_RETRIES'] = value
-            config = Config()
-            config.validate_max_retries()  # Should not raise
-            del os.environ['MAX_RETRIES']
-
-    def test_validate_max_retries_invalid(self):
-        """Test that validate_max_retries fails with invalid values."""
-        os.environ['MAX_RETRIES'] = '0'
-        config = Config()
-        with self.assertRaises(ConfigurationError) as context:
-            config.validate_max_retries()
-        self.assertIn('positive integer', str(context.exception))
-        
-        del os.environ['MAX_RETRIES']
-        os.environ['MAX_RETRIES'] = '-1'
-        config = Config()
-        with self.assertRaises(ConfigurationError) as context:
-            config.validate_max_retries()
-        self.assertIn('positive integer', str(context.exception))
-
     def test_validate_all_success(self):
         """Test that validate_all passes when all validations succeed."""
         os.environ['AWS_ACCESS_KEY_ID'] = 'test_key'
         os.environ['AWS_SECRET_ACCESS_KEY'] = 'test_secret'
+        os.environ['AWS_REGION'] = 'us-west-2'
         os.environ['S3_BUCKET_NAME'] = 'test-bucket'
         os.environ['SERVICE_NAME'] = 'MySQL'
         os.environ['ENVIRONMENT_TYPE'] = 'PROD'
         os.environ['PLAN_ID'] = 'plan-123'
-        os.environ['MAX_RETRIES'] = '5'
         os.environ['START_MONTH'] = '2024-06'
         
         config = Config()

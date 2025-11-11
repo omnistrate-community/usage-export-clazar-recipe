@@ -41,9 +41,12 @@ class MeteringProcessor:
         
         # Configure AWS credentials and create S3 client
         s3_kwargs = {}
-        s3_kwargs['aws_access_key_id'] = config.aws_access_key_id
-        s3_kwargs['aws_secret_access_key'] = config.aws_secret_access_key
-        s3_kwargs['region_name'] = config.aws_region
+        if config.aws_access_key_id:
+            s3_kwargs['aws_access_key_id'] = config.aws_access_key_id
+        if config.aws_secret_access_key:
+            s3_kwargs['aws_secret_access_key'] = config.aws_secret_access_key
+        if config.aws_region:
+            s3_kwargs['region_name'] = config.aws_region
         
         self.s3_client = boto3.client('s3', **s3_kwargs)
         
@@ -56,21 +59,6 @@ class MeteringProcessor:
         
         # Log AWS configuration (without exposing sensitive data)
         self.logger.info(f"Using provided AWS credentials for region: {config.aws_region}")
-
-    def get_latest_month_with_complete_usage_data(self, service_name: str, environment_type: str, 
-                                plan_id: str) -> Optional[Tuple[int, int]]:
-        """
-        Get the latest month for which complete usage data is available.
-        
-        Args:
-            service_name: Name of the service
-            environment_type: Environment type
-            plan_id: Plan ID
-            
-        Returns:
-            Tuple of (year, month) for last processed month, or None if never processed
-        """
-        return self.state_manager.get_latest_month_with_complete_usage_data(service_name, environment_type, plan_id)
 
     def get_next_month_to_process(self, service_name: str, environment_type: str, 
                                  plan_id: str, default_start_month: Optional[Tuple[int, int]] = None) -> Optional[Tuple[int, int]]:
@@ -308,8 +296,7 @@ class MeteringProcessor:
 
     def send_to_clazar(self, aggregated_data: Dict[Tuple[str, str], float], 
                       start_time: datetime, end_time: datetime,
-                      service_name: str, environment_type: str, plan_id: str,
-                      max_retries: int = 5) -> bool:
+                      service_name: str, environment_type: str, plan_id: str) -> bool:
         """
         Send aggregated usage data to Clazar and track processed contracts.
         Includes retry logic with exponential backoff for failed contracts.
@@ -321,7 +308,6 @@ class MeteringProcessor:
             service_name: Name of the service
             environment_type: Environment type
             plan_id: Plan ID
-            max_retries: Maximum retry attempts for failed contracts
             
         Returns:
             True if successful, False otherwise
@@ -378,7 +364,7 @@ class MeteringProcessor:
                     self.logger.error(f"Errors: {errors}")
                     self.state_manager.mark_contract_month_error(service_name, environment_type, plan_id, 
                                                  contract_id, year, month, errors, error_code, 
-                                                 error_message, {"request": records}, max_retries)
+                                                 error_message, {"request": records})
                     all_success = False
                 else:
                     # Success
@@ -398,14 +384,14 @@ class MeteringProcessor:
                 self.logger.error(f"Clazar API error for contract {contract_id}: {e.message}")
                 self.state_manager.mark_contract_month_error(service_name, environment_type, plan_id, 
                                              contract_id, year, month, [e.message], 
-                                             "API_ERROR", e.message, {"request": records}, max_retries)
+                                             "API_ERROR", e.message, {"request": records})
                 all_success = False
                 
             except Exception as e:
                 self.logger.error(f"Unexpected error for contract {contract_id}: {e}")
                 self.state_manager.mark_contract_month_error(service_name, environment_type, plan_id, 
                                              contract_id, year, month, [str(e)], 
-                                             "UNEXPECTED_ERROR", str(e), {"request": records}, max_retries)
+                                             "UNEXPECTED_ERROR", str(e), {"request": records})
                 all_success = False
             
             if not success:
@@ -414,7 +400,7 @@ class MeteringProcessor:
         return all_success
 
     def retry_error_contracts(self, service_name: str, environment_type: str, 
-                             plan_id: str, year: int, month: int, max_retries: int = 5) -> bool:
+                             plan_id: str, year: int, month: int) -> bool:
         """
         Retry sending failed contracts for a specific month.
         
@@ -430,7 +416,7 @@ class MeteringProcessor:
             True if all retries were successful, False otherwise
         """
         error_contracts = self.state_manager.get_error_contracts_for_retry(service_name, environment_type, 
-                                                           plan_id, year, month, max_retries)
+                                                           plan_id, year, month)
         
         if not error_contracts:
             self.logger.info(f"No error contracts to retry for {year}-{month:02d}")
