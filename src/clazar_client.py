@@ -15,7 +15,6 @@ import requests
 
 from config import Config
 
-
 class ClazarAPIError(Exception):
     """Exception raised for Clazar API errors."""
     
@@ -40,6 +39,13 @@ class ClazarClient:
         Args:
             config: Configuration object containing Clazar credentials
         """
+        if not config:
+            raise ValueError("Config object is required to initialize ClazarClient")    
+        if not config.clazar_client_id:
+            raise ValueError("Clazar client ID is required in config")
+        if not config.clazar_client_secret:
+            raise ValueError("Clazar client secret is required in config")
+        
         self.client_id = config.clazar_client_id
         self.client_secret = config.clazar_client_secret
         self.access_token = None

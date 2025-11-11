@@ -24,7 +24,7 @@ class TestConfig(unittest.TestCase):
             'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_REGION',
             'S3_BUCKET_NAME', 'CLAZAR_CLIENT_ID', 'CLAZAR_CLIENT_SECRET',
             'CLAZAR_CLOUD', 'SERVICE_NAME', 'ENVIRONMENT_TYPE', 'PLAN_ID',
-            'STATE_FILE_PATH', 'MAX_RETRIES', 'START_MONTH', 'DRY_RUN',
+            'MAX_RETRIES', 'START_MONTH', 'DRY_RUN',
             'DIMENSION1_NAME', 'DIMENSION1_FORMULA',
             'DIMENSION2_NAME', 'DIMENSION2_FORMULA',
             'DIMENSION3_NAME', 'DIMENSION3_FORMULA',
@@ -55,7 +55,6 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(config.service_name, 'Postgres')
         self.assertEqual(config.environment_type, 'PROD')
         self.assertEqual(config.plan_id, 'pt-HJSv20iWX0')
-        self.assertEqual(config.state_file_path, 'metering_state.json')
         self.assertEqual(config.max_retries, 5)
         self.assertEqual(config.start_month, '2025-01')
         self.assertFalse(config.dry_run)
@@ -75,7 +74,6 @@ class TestConfig(unittest.TestCase):
         os.environ['SERVICE_NAME'] = 'MySQL'
         os.environ['ENVIRONMENT_TYPE'] = 'DEV'
         os.environ['PLAN_ID'] = 'plan-xyz'
-        os.environ['STATE_FILE_PATH'] = 'custom_state.json'
         os.environ['MAX_RETRIES'] = '10'
         os.environ['START_MONTH'] = '2024-06'
         os.environ['DRY_RUN'] = 'true'
@@ -92,7 +90,6 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(config.service_name, 'MySQL')
         self.assertEqual(config.environment_type, 'DEV')
         self.assertEqual(config.plan_id, 'plan-xyz')
-        self.assertEqual(config.state_file_path, 'custom_state.json')
         self.assertEqual(config.max_retries, 10)
         self.assertEqual(config.start_month, '2024-06')
         self.assertTrue(config.dry_run)

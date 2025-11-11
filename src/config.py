@@ -86,6 +86,8 @@ class Config:
             raise ConfigurationError("AWS_SECRET_ACCESS_KEY is missing")
         if not self.aws_access_key_id:
             raise ConfigurationError("AWS_ACCESS_KEY_ID is missing")
+        if not self.aws_region:
+            raise ConfigurationError("AWS_REGION is missing")
     
     def validate_required_config(self):
         """

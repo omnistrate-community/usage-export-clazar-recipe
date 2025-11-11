@@ -81,7 +81,6 @@ omnistrate-ctl build -f omnistrate-compose.yaml --product-name "Clazar exporter"
 - `SERVICE_NAME`: Name of the service (e.g., "Postgres")
 - `ENVIRONMENT_TYPE`: Environment type (e.g., "PROD", "DEV")
 - `PLAN_ID`: Plan ID (e.g., "pt-HJSv20iWX0")
-- `STATE_FILE_PATH`: Path to state file in S3 (default: "metering_state.json")
 - `START_MONTH`: Start month for processing (format: YYYY-MM, default: "2025-06")
 - `DRY_RUN`: Set to "true" to run without sending data to Clazar (default: "false")
 - `DIMENSION1_NAME`:  Dimension name. Name of the Dimension configured on Clazar.
