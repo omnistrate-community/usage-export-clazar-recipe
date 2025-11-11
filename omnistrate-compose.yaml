@@ -18,25 +18,25 @@ services:
     privileged: true
     platform: linux/amd64
     environment:
-      S3_BUCKET_NAME: $var.s3BucketName
       SERVICE_NAME: $var.serviceName
       ENVIRONMENT_TYPE: $var.environmentType
       PLAN_ID: $var.planId
       CLAZAR_CLIENT_ID: $var.clazarClientId
       CLAZAR_CLIENT_SECRET: $var.clazarClientSecret
       CLAZAR_CLOUD: $var.clazarCloud
+      AWS_S3_BUCKET_NAME: $var.awsS3BucketName
+      AWS_REGION: $var.awsRegion
       AWS_ACCESS_KEY_ID: $var.awsAccessKeyId
       AWS_SECRET_ACCESS_KEY: $var.awsSecretAccessKey
-      AWS_REGION: $var.awsRegion
-      STATE_FILE_PATH: $var.stateFilePath
-      START_MONTH: $var.startMonth
-      DRY_RUN: $var.dryRun
       DIMENSION1_NAME: $var.dimension1Name
       DIMENSION1_FORMULA: $var.dimension1Formula
       DIMENSION2_NAME: $var.dimension2Name
       DIMENSION2_FORMULA: $var.dimension2Formula
       DIMENSION3_NAME: $var.dimension3Name
       DIMENSION3_FORMULA: $var.dimension3Formula
+      START_MONTH: $var.startMonth
+      DRY_RUN: $var.dryRun
+      LOG_LEVEL: $var.logLevel
     x-omnistrate-compute:
       replicaCount: 1
       instanceTypes:
@@ -107,6 +107,13 @@ services:
         modifiable: true
         required: true
         export: false
+      - key: awsS3BucketName
+        description: The name of the S3 bucket to pull usage data from.
+        name: AWS S3 Bucket Name
+        type: String
+        modifiable: true
+        required: true
+        export: true
       - key: awsRegion
         description: AWS Region
         name: AWS Region
@@ -114,37 +121,7 @@ services:
         modifiable: true
         required: false
         export: true
-        defaultValue: "us-east-2"
-      - key: s3BucketName
-        description: The name of the S3 bucket to pull usage data from.
-        name: S3 Bucket Name
-        type: String
-        modifiable: true
-        required: true
-        export: true
-      - key: stateFilePath
-        description: Path to store the state file for storing processed data in the S3 bucket.
-        name: State File Path
-        type: String
-        modifiable: true 
-        required: false
-        export: true
-        defaultValue: "metering_state.json"
-      - key: startMonth
-        description: "Start Month for processing (format: YYYY-MM)"
-        name: Start Month
-        type: String
-        modifiable: true
-        required: true
-        export: true
-      - key: dryRun
-        description: Enable dry run mode to test without actual data sending to Clazar.
-        name: Dry Run Mode
-        type: Boolean
-        modifiable: true
-        required: false
-        export: true
-        defaultValue: "false"
+        defaultValue: "us-west-2"
       - key: dimension1Name
         description: Custom Dimension 1 Name
         name: Custom Dimension 1 Name
@@ -187,4 +164,32 @@ services:
         modifiable: true
         required: false
         export: true
+      - key: startMonth
+        description: "Start Month for processing (format: YYYY-MM)"
+        name: Start Month
+        type: String
+        modifiable: true
+        required: true
+        export: true
+      - key: dryRun
+        description: Enable dry run mode to test without actual data sending to Clazar.
+        name: Dry Run Mode
+        type: Boolean
+        modifiable: true
+        required: false
+        export: true
+        defaultValue: "false"
+      - key: logLevel
+        description: Logging level (e.g., INFO, DEBUG)
+        name: Log Level
+        type: String
+        modifiable: true
+        required: false
+        export: true
+        defaultValue: "INFO"
+        options:
+          - INFO
+          - DEBUG
+          - WARNING
+          - ERROR
     x-omnistrate-mode-internal: false

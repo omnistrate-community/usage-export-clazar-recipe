@@ -13,6 +13,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from clazar_client import ClazarClient, ClazarAPIError
+from config import Config
 
 
 class TestClazarClient(unittest.TestCase):
@@ -20,16 +21,34 @@ class TestClazarClient(unittest.TestCase):
     
     def setUp(self):
         """Set up test fixtures"""
+        # Set required environment variables for Config
+        os.environ['CLAZAR_CLIENT_ID'] = 'test_client_id'
+        os.environ['CLAZAR_CLIENT_SECRET'] = 'test_client_secret'
+        os.environ['AWS_ACCESS_KEY_ID'] = 'test_aws_key'
+        os.environ['AWS_SECRET_ACCESS_KEY'] = 'test_aws_secret'
+        os.environ['AWS_REGION'] = 'us-west-1'
+        os.environ['DIMENSION1_NAME'] = 'test_dimension'
+        os.environ['DIMENSION1_FORMULA'] = 'test_formula'
+        os.environ['DRY_RUN'] = 'false'
+        
         self.client_id = "test_client_id"
         self.client_secret = "test_client_secret"
         self.access_token = "test_access_token"
     
+    def tearDown(self):
+        """Clean up test fixtures"""
+        # Clean up environment variables
+        env_vars = ['CLAZAR_CLIENT_ID', 'CLAZAR_CLIENT_SECRET', 'AWS_ACCESS_KEY_ID',
+                    'AWS_SECRET_ACCESS_KEY', 'AWS_REGION', 'DIMENSION1_NAME', 
+                    'DIMENSION1_FORMULA', 'DRY_RUN']
+        for var in env_vars:
+            if var in os.environ:
+                del os.environ[var]
+    
     def test_init(self):
         """Test ClazarClient initialization"""
-        client = ClazarClient(
-            client_id=self.client_id,
-            client_secret=self.client_secret
-        )
+        config = Config()
+        client = ClazarClient(config=config)
         
         self.assertEqual(client.client_id, self.client_id)
         self.assertEqual(client.client_secret, self.client_secret)
@@ -38,15 +57,20 @@ class TestClazarClient(unittest.TestCase):
     
     def test_init_with_access_token(self):
         """Test ClazarClient initialization with access token"""
-        client = ClazarClient(access_token=self.access_token)
+        config = Config()
+        client = ClazarClient(config=config)
+        # Set access token after initialization
+        client.access_token = self.access_token
         
         self.assertEqual(client.access_token, self.access_token)
-        self.assertIsNone(client.client_id)
-        self.assertIsNone(client.client_secret)
+        self.assertEqual(client.client_id, self.client_id)
+        self.assertEqual(client.client_secret, self.client_secret)
     
     def test_init_dry_run(self):
         """Test ClazarClient initialization in dry run mode"""
-        client = ClazarClient(dry_run=True)
+        os.environ['DRY_RUN'] = 'true'
+        config = Config()
+        client = ClazarClient(config=config)
         
         self.assertTrue(client.dry_run)
     
@@ -58,10 +82,8 @@ class TestClazarClient(unittest.TestCase):
         mock_response.json.return_value = {"access_token": self.access_token}
         mock_post.return_value = mock_response
         
-        client = ClazarClient(
-            client_id=self.client_id,
-            client_secret=self.client_secret
-        )
+        config = Config()
+        client = ClazarClient(config=config)
         
         token = client.authenticate()
         
@@ -84,10 +106,8 @@ class TestClazarClient(unittest.TestCase):
         mock_response.json.return_value = {"error": "Invalid credentials"}
         mock_post.return_value = mock_response
         
-        client = ClazarClient(
-            client_id=self.client_id,
-            client_secret=self.client_secret
-        )
+        config = Config()
+        client = ClazarClient(config=config)
         
         with self.assertRaises(ClazarAPIError) as context:
             client.authenticate()
@@ -103,10 +123,8 @@ class TestClazarClient(unittest.TestCase):
         mock_response.json.return_value = {"message": "Success"}
         mock_post.return_value = mock_response
         
-        client = ClazarClient(
-            client_id=self.client_id,
-            client_secret=self.client_secret
-        )
+        config = Config()
+        client = ClazarClient(config=config)
         
         with self.assertRaises(ClazarAPIError) as context:
             client.authenticate()
@@ -118,10 +136,8 @@ class TestClazarClient(unittest.TestCase):
         """Test authentication failure due to network error"""
         mock_post.side_effect = requests.RequestException("Connection timeout")
         
-        client = ClazarClient(
-            client_id=self.client_id,
-            client_secret=self.client_secret
-        )
+        config = Config()
+        client = ClazarClient(config=config)
         
         with self.assertRaises(ClazarAPIError) as context:
             client.authenticate()
@@ -130,20 +146,20 @@ class TestClazarClient(unittest.TestCase):
     
     def test_authenticate_missing_credentials(self):
         """Test authentication failure when credentials are missing"""
-        client = ClazarClient()
+        os.environ['CLAZAR_CLIENT_ID'] = ''
+        os.environ['CLAZAR_CLIENT_SECRET'] = ''
+        config = Config()
         
-        with self.assertRaises(ClazarAPIError) as context:
-            client.authenticate()
+        with self.assertRaises(ValueError) as context:
+            client = ClazarClient(config=config)
         
-        self.assertIn("Client ID and secret are required", str(context.exception))
+        self.assertIn("Clazar client", str(context.exception))
     
     def test_authenticate_dry_run(self):
         """Test authentication in dry run mode"""
-        client = ClazarClient(
-            client_id=self.client_id,
-            client_secret=self.client_secret,
-            dry_run=True
-        )
+        os.environ['DRY_RUN'] = 'true'
+        config = Config()
+        client = ClazarClient(config=config)
         
         token = client.authenticate()
         
@@ -162,7 +178,9 @@ class TestClazarClient(unittest.TestCase):
         }
         mock_post.return_value = mock_response
         
-        client = ClazarClient(access_token=self.access_token)
+        config = Config()
+        client = ClazarClient(config=config)
+        client.access_token = self.access_token
         
         records = [
             {
@@ -191,7 +209,9 @@ class TestClazarClient(unittest.TestCase):
     
     def test_send_metering_data_empty_records(self):
         """Test sending empty metering data"""
-        client = ClazarClient(access_token=self.access_token)
+        config = Config()
+        client = ClazarClient(config=config)
+        client.access_token = self.access_token
         
         result = client.send_metering_data([])
         
@@ -199,7 +219,8 @@ class TestClazarClient(unittest.TestCase):
     
     def test_send_metering_data_no_token(self):
         """Test sending metering data without access token"""
-        client = ClazarClient()
+        config = Config()
+        client = ClazarClient(config=config)
         
         records = [{"cloud": "aws", "contract_id": "123"}]
         
@@ -210,10 +231,10 @@ class TestClazarClient(unittest.TestCase):
     
     def test_send_metering_data_dry_run(self):
         """Test sending metering data in dry run mode"""
-        client = ClazarClient(
-            access_token=self.access_token,
-            dry_run=True
-        )
+        os.environ['DRY_RUN'] = 'true'
+        config = Config()
+        client = ClazarClient(config=config)
+        client.access_token = self.access_token
         
         records = [
             {
@@ -240,7 +261,9 @@ class TestClazarClient(unittest.TestCase):
         mock_response.json.return_value = {"error": "Invalid data"}
         mock_post.return_value = mock_response
         
-        client = ClazarClient(access_token=self.access_token)
+        config = Config()
+        client = ClazarClient(config=config)
+        client.access_token = self.access_token
         
         records = [{"cloud": "aws", "contract_id": "123"}]
         
@@ -258,7 +281,9 @@ class TestClazarClient(unittest.TestCase):
         mock_response.json.return_value = {"message": "Success"}  # Missing 'results'
         mock_post.return_value = mock_response
         
-        client = ClazarClient(access_token=self.access_token)
+        config = Config()
+        client = ClazarClient(config=config)
+        client.access_token = self.access_token
         
         records = [{"cloud": "aws", "contract_id": "123"}]
         
@@ -281,7 +306,9 @@ class TestClazarClient(unittest.TestCase):
             )
         ]
         
-        client = ClazarClient(access_token=self.access_token)
+        config = Config()
+        client = ClazarClient(config=config)
+        client.access_token = self.access_token
         
         records = [{"cloud": "aws", "contract_id": "123"}]
         
@@ -297,7 +324,9 @@ class TestClazarClient(unittest.TestCase):
         """Test metering data submission when max retries exceeded"""
         mock_post.side_effect = requests.RequestException("Connection timeout")
         
-        client = ClazarClient(access_token=self.access_token)
+        config = Config()
+        client = ClazarClient(config=config)
+        client.access_token = self.access_token
         
         records = [{"cloud": "aws", "contract_id": "123"}]
         
@@ -309,7 +338,8 @@ class TestClazarClient(unittest.TestCase):
     
     def test_check_response_for_errors_no_errors(self):
         """Test checking response with no errors"""
-        client = ClazarClient()
+        config = Config()
+        client = ClazarClient(config=config)
         
         response_data = {
             "results": [
@@ -325,7 +355,8 @@ class TestClazarClient(unittest.TestCase):
     
     def test_check_response_for_errors_with_errors(self):
         """Test checking response with errors"""
-        client = ClazarClient()
+        config = Config()
+        client = ClazarClient(config=config)
         
         response_data = {
             "results": [
@@ -350,7 +381,8 @@ class TestClazarClient(unittest.TestCase):
     
     def test_check_response_for_errors_with_string_error(self):
         """Test checking response with string error"""
-        client = ClazarClient()
+        config = Config()
+        client = ClazarClient(config=config)
         
         response_data = {
             "results": [
@@ -372,7 +404,8 @@ class TestClazarClient(unittest.TestCase):
     
     def test_check_response_for_errors_with_warnings(self):
         """Test checking response with warnings (non-success status but no errors)"""
-        client = ClazarClient()
+        config = Config()
+        client = ClazarClient(config=config)
         
         response_data = {
             "results": [
@@ -393,7 +426,8 @@ class TestClazarClient(unittest.TestCase):
     
     def test_check_response_for_errors_multiple_results(self):
         """Test checking response with multiple results, some with errors"""
-        client = ClazarClient()
+        config = Config()
+        client = ClazarClient(config=config)
         
         response_data = {
             "results": [

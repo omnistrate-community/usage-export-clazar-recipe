@@ -6,7 +6,7 @@ This module handles reading and validating environment variables.
 """
 
 import os
-import sys
+import logging
 from typing import Dict, Optional, Tuple
 
 
@@ -20,9 +20,12 @@ class Config:
     
     def __init__(self):
         """Initialize configuration by reading environment variables."""
+        self.logging = logging.getLogger(__name__)
+
         self._load_aws_config()
         self._load_clazar_config()
         self._load_processor_config()
+        self._load_healthcheck_config()
         self._load_custom_dimensions()
         
     def _load_aws_config(self):
@@ -30,7 +33,7 @@ class Config:
         self.aws_access_key_id = os.getenv('AWS_ACCESS_KEY_ID')
         self.aws_secret_access_key = os.getenv('AWS_SECRET_ACCESS_KEY')
         self.aws_region = os.getenv('AWS_REGION')
-        self.bucket_name = os.getenv('S3_BUCKET_NAME', 'omnistrate-usage-metering-export-demo')
+        self.aws_s3_bucket = os.getenv('AWS_S3_BUCKET_NAME', 'omnistrate-usage-metering-export-demo')
         
     def _load_clazar_config(self):
         """Load and validate Clazar configuration."""
@@ -40,13 +43,15 @@ class Config:
         
     def _load_processor_config(self):
         """Load and validate processor configuration."""
-        self.service_name = os.getenv('SERVICE_NAME', 'Postgres')
-        self.environment_type = os.getenv('ENVIRONMENT_TYPE', 'PROD')
-        self.plan_id = os.getenv('PLAN_ID', 'pt-HJSv20iWX0')
-        self.state_file_path = os.getenv('STATE_FILE_PATH', 'metering_state.json')
-        self.max_retries = int(os.getenv('MAX_RETRIES', '5'))
+        self.service_name = os.getenv('SERVICE_NAME', '')
+        self.environment_type = os.getenv('ENVIRONMENT_TYPE', '')
+        self.plan_id = os.getenv('PLAN_ID', '')
         self.start_month = os.getenv('START_MONTH', '2025-01')
         self.dry_run = os.getenv('DRY_RUN', 'false').lower() in ('true', '1', 'yes')
+    
+    def _load_healthcheck_config(self):
+        """Load healthcheck server configuration."""
+        self.healthcheck_port = int(os.getenv('HEALTHCHECK_PORT', '8080'))
         
     def _load_custom_dimensions(self):
         """Load and validate custom dimensions configuration."""
@@ -75,6 +80,20 @@ class Config:
         
         if len(self.custom_dimensions) == 0:
             raise ConfigurationError("At least one custom dimension must be provided")
+        
+    def setup_logging(self):
+        """Set up logging configuration."""
+        import logging
+        import sys
+        
+        logging.basicConfig(
+            level=os.getenv('LOG_LEVEL', 'INFO').upper(),
+            format='%(asctime)s - %(levelname)s - %(message)s',
+            stream=sys.stdout,
+            force=True
+        )
+        
+        logging.info("Logging is configured to level: %s", os.getenv('LOG_LEVEL', 'INFO').upper())
 
     def validate_aws_credentials(self):
         """
@@ -87,6 +106,8 @@ class Config:
             raise ConfigurationError("AWS_SECRET_ACCESS_KEY is missing")
         if not self.aws_access_key_id:
             raise ConfigurationError("AWS_ACCESS_KEY_ID is missing")
+        if not self.aws_region:
+            raise ConfigurationError("AWS_REGION is missing")
     
     def validate_required_config(self):
         """
@@ -95,10 +116,10 @@ class Config:
         Raises:
             ConfigurationError: If required configuration is missing
         """
-        if not all([self.bucket_name, self.service_name, self.environment_type, self.plan_id]):
+        if not all([self.aws_s3_bucket, self.service_name, self.environment_type, self.plan_id]):
             raise ConfigurationError(
                 "Missing required configuration. Please set environment variables: "
-                "S3_BUCKET_NAME, SERVICE_NAME, ENVIRONMENT_TYPE, PLAN_ID"
+                "AWS_S3_BUCKET_NAME, SERVICE_NAME, ENVIRONMENT_TYPE, PLAN_ID"
             )
     
     def validate_custom_dimensions(self):
@@ -148,16 +169,6 @@ class Config:
                 )
         return 2025, 1  # Default start month
     
-    def validate_max_retries(self):
-        """
-        Validate that max_retries is a positive integer.
-        
-        Raises:
-            ConfigurationError: If max_retries is invalid
-        """
-        if self.max_retries < 1:
-            raise ConfigurationError("MAX_RETRIES must be a positive integer")
-    
     def validate_all(self):
         """
         Run all validation checks.
@@ -169,23 +180,23 @@ class Config:
         self.validate_aws_credentials()
         self.validate_custom_dimensions()
         self.validate_start_month()
-        self.validate_max_retries()
     
     def print_summary(self):
         """Print a summary of the configuration (without sensitive data)."""
-        print(f"Configuration loaded:")
-        print(f"  AWS Region: {self.aws_region}")
-        print(f"  S3 Bucket: {self.bucket_name}")
-        print(f"  Service: {self.service_name}")
-        print(f"  Environment: {self.environment_type}")
-        print(f"  Plan ID: {self.plan_id}")
-        print(f"  State File: {self.state_file_path}")
-        print(f"  Max Retries: {self.max_retries}")
-        print(f"  Start Month: {self.start_month}")
-        print(f"  Dry Run: {self.dry_run}")
-        print(f"  Clazar Cloud: {self.clazar_cloud}")
+        self.logging.info(f"Configuration loaded:")
+        self.logging.info(f"  Log Level: {os.getenv('LOG_LEVEL', 'INFO').upper()}")
+        self.logging.info(f"  Healthcheck Port: {self.healthcheck_port}")
+        self.logging.info(f"  AWS S3 Bucket: {self.aws_s3_bucket}")
+        self.logging.info(f"  AWS Region: {self.aws_region}")
+        self.logging.info(f"  Service: {self.service_name}")
+        self.logging.info(f"  Environment: {self.environment_type}")
+        self.logging.info(f"  Plan ID: {self.plan_id}")
+        self.logging.info(f"  Start Month: {self.start_month}")
+        self.logging.info(f"  Dry Run: {self.dry_run}")
+        self.logging.info(f"  Clazar Cloud: {self.clazar_cloud}")
         
         if self.custom_dimensions:
-            print(f"  Custom dimensions configured: {list(self.custom_dimensions.keys())}")
+            self.logging.info(f"  Custom dimensions configured: {list(self.custom_dimensions.keys())}")
             for name, formula in self.custom_dimensions.items():
-                print(f"    {name}: {formula}")
+                self.logging.info(f"    {name}: {formula}")
+                

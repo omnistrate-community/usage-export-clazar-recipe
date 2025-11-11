@@ -62,6 +62,11 @@ docker-build:
 docker-run: docker-build
 	docker run -p 8080:8080 usage-export-clazar-recipe:latest
 
+.PHONY: run
+run: build
+	@echo "Running $(SERVICE_NAME)..."
+	$(VENV_DIR)/bin/python src/main.py
+
 .PHONY: unit-tests
 unit-tests: build
 	@echo "Running unit tests..."

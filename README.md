@@ -24,7 +24,7 @@ Your AWS credentials need the following S3 permissions:
                 "s3:ListBucket"
             ],
             "Resource": [
-                "arn:aws:s3:::your-bucket-name",
+                "arn:aws:s3:::your-bucket-name"
             ]
         }, 
         {
@@ -74,14 +74,13 @@ omnistrate-ctl build -f omnistrate-compose.yaml --product-name "Clazar exporter"
 - `AWS_ACCESS_KEY_ID`: AWS access key ID
 - `AWS_SECRET_ACCESS_KEY`: AWS secret access key
 - `AWS_REGION`: AWS region (default: uses AWS default)
-- `S3_BUCKET_NAME`: S3 bucket name
+- `AWS_S3_BUCKET_NAME`: S3 bucket name
 - `CLAZAR_CLIENT_ID`: Clazar client ID for authentication
 - `CLAZAR_CLIENT_SECRET`: Clazar client secret for authentication
-- `CLAZAR_CLOUD`: Cloud provider name (e.g., "aws", "gcp", "azure")
+- `CLAZAR_CLOUD`: Cloud Provider Marketplace (e.g., "aws", "gcp", "azure")
 - `SERVICE_NAME`: Name of the service (e.g., "Postgres")
 - `ENVIRONMENT_TYPE`: Environment type (e.g., "PROD", "DEV")
 - `PLAN_ID`: Plan ID (e.g., "pt-HJSv20iWX0")
-- `STATE_FILE_PATH`: Path to state file in S3 (default: "metering_state.json")
 - `START_MONTH`: Start month for processing (format: YYYY-MM, default: "2025-06")
 - `DRY_RUN`: Set to "true" to run without sending data to Clazar (default: "false")
 - `DIMENSION1_NAME`:  Dimension name. Name of the Dimension configured on Clazar.
