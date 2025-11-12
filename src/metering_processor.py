@@ -54,7 +54,7 @@ class MeteringProcessor:
         Returns:
             Tuple of (year, month) for next month to process, or None if caught up
         """
-        last_processed = self.state_manager.get_last_processed_month(service_name, environment_type, plan_id)
+        last_processed = self.state_manager.get_last_processed_month()
         latest_month_with_complete_usage_data = self.metering_reader.get_latest_month_with_complete_usage_data(service_name, environment_type, plan_id)
         if latest_month_with_complete_usage_data is None:
             self.logger.error(f"Failed to retrieve latest month with complete usage data")

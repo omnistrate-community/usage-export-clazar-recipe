@@ -47,8 +47,17 @@ class OmnistrateMeteringReader:
             raise OmnistrateMeteringReaderError("AWS Secret Access Key is not configured.")
         if not config.aws_region:
             raise OmnistrateMeteringReaderError("AWS region is not configured.")
+        if not config.service_name:
+            raise OmnistrateMeteringReaderError("Service name is not configured.")
+        if not config.environment_type:
+            raise OmnistrateMeteringReaderError("Environment type is not configured.")
+        if not config.plan_id:
+            raise OmnistrateMeteringReaderError("Plan ID is not configured.")
 
         self.aws_s3_bucket = config.aws_s3_bucket
+        self.service_name = config.service_name
+        self.environment_type = config.environment_type
+        self.plan_id = config.plan_id
         
         # Configure AWS credentials and create S3 client
         s3_kwargs = {}
@@ -60,13 +69,14 @@ class OmnistrateMeteringReader:
             s3_kwargs['region_name'] = config.aws_region
         
         self.s3_client = boto3.client('s3', **s3_kwargs)
+
         
         # Set up logging
         self.logger = logging.getLogger(__name__)
         
         self.logger.info(f"OmnistrateMeteringReader initialized for bucket: {self.aws_s3_bucket}")
 
-    def get_service_key(self, service_name: str, environment_type: str, plan_id: str) -> str:
+    def get_service_key(self) -> str:
         """
         Generate a unique key for a service configuration.
         
@@ -78,7 +88,7 @@ class OmnistrateMeteringReader:
         Returns:
             Unique service key
         """
-        return f"{service_name}:{environment_type}:{plan_id}"
+        return f"{self.service_name}:{self.environment_type}:{self.plan_id}"
 
     def load_usage_data_state(self) -> Dict:
         """
@@ -109,8 +119,7 @@ class OmnistrateMeteringReader:
             self.logger.error(f"Error parsing omnistrate-metering/last_success_export.json file: {e}")
             return {}
 
-    def get_latest_month_with_complete_usage_data(self, service_name: str, environment_type: str, 
-                                plan_id: str) -> Optional[Tuple[int, int]]:
+    def get_latest_month_with_complete_usage_data(self) -> Optional[Tuple[int, int]]:
         """
         Get the latest month for which complete usage data is available.
         
@@ -127,7 +136,7 @@ class OmnistrateMeteringReader:
         if not state:
             return None
 
-        service_key = self.get_service_key(service_name, environment_type, plan_id)
+        service_key = self.get_service_key()
         
         if service_key not in state:
             return None
