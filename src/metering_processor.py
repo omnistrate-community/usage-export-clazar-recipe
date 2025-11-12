@@ -566,6 +566,7 @@ def main():
     # Initialize the processor
     processor = MeteringProcessor(
         config=config,
+        metering_reader=metering_reader,
         state_manager=state_manager,
         clazar_client=clazar_client,
     )

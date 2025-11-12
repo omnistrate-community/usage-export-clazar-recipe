@@ -18,7 +18,7 @@ services:
     privileged: true
     platform: linux/amd64
     ports:
-      - port: 8080
+      - port: 8080 # health check port
     environment:
       SERVICE_NAME: $var.serviceName
       ENVIRONMENT_TYPE: $var.environmentType
