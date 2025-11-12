@@ -193,8 +193,7 @@ class StateManager:
         
         return False
 
-    def mark_contract_month_processed(self, service_name: str, environment_type: str, 
-                                     plan_id: str, contract_id: str, year: int, month: int):
+    def mark_contract_month_processed(self, contract_id: str, year: int, month: int):
         """
         Mark a specific contract for a month as processed (successfully).
         
@@ -221,8 +220,7 @@ class StateManager:
         state['last_updated'] = datetime.now(timezone.utc).isoformat() + 'Z'
         self.save_state(state)
 
-    def mark_contract_month_error(self, service_name: str, environment_type: str, 
-                                 plan_id: str, contract_id: str, year: int, month: int,
+    def mark_contract_month_error(self, contract_id: str, year: int, month: int,
                                  errors: List[str], code: str = None, message: str = None,
                                  payload: Dict = None, retry_count: int = 5):
         """
@@ -288,8 +286,7 @@ class StateManager:
         state['last_updated'] = datetime.now(timezone.utc).isoformat() + 'Z'
         self.save_state(state)
 
-    def get_error_contracts_for_retry(self, service_name: str, environment_type: str, 
-                                     plan_id: str, year: int, month: int, max_retries: int = 5) -> List[Dict]:
+    def get_error_contracts_for_retry(self, year: int, month: int, max_retries: int = 5) -> List[Dict]:
         """
         Get error contracts that can be retried for a specific month.
         
