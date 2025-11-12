@@ -17,6 +17,8 @@ services:
     image: ghcr.io/omnistrateio/usage-export-clazar-recipe:0.0.1
     privileged: true
     platform: linux/amd64
+    ports:
+      - port: 8080
     environment:
       SERVICE_NAME: $var.serviceName
       ENVIRONMENT_TYPE: $var.environmentType
