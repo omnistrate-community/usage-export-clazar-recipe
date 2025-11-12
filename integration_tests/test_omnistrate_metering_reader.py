@@ -53,9 +53,16 @@ class TestOmnistrateMeteringReaderIntegration(unittest.TestCase):
         logger.info(f"Running test: {self._testMethodName}")
         logger.info("=" * 60)
         
-        # Load configuration - fail test if config cannot be loaded
+        # Load configuration - skip test if required env vars not set
         try:
             self.config = Config()
+            
+            # Check if required service-specific env vars are set
+            if not self.config.service_name or not self.config.environment_type or not self.config.plan_id:
+                logger.warning("SERVICE_NAME, ENVIRONMENT_TYPE, or PLAN_ID not set in environment")
+                logger.warning("Skipping test - these are required for OmnistrateMeteringReader integration tests")
+                self.skipTest("SERVICE_NAME, ENVIRONMENT_TYPE, and PLAN_ID must be set for integration tests")
+            
             logger.info("✓ Configuration loaded successfully")
             logger.info(f"  S3 Bucket: {self.config.aws_s3_bucket}")
             logger.info(f"  Service: {self.config.service_name}")
@@ -108,17 +115,14 @@ class TestOmnistrateMeteringReaderIntegration(unittest.TestCase):
     
     def test_get_service_key(self):
         """Test service key generation."""
-        service_name = "test-service"
-        environment_type = "PROD"
-        plan_id = "plan-123"
-        
-        key = self.reader.get_service_key(service_name, environment_type, plan_id)
+        # OmnistrateMeteringReader now stores service info in instance
+        key = self.reader.get_service_key()
         
         self.assertIsInstance(key, str, "Service key should be a string")
-        self.assertIn(service_name, key, "Service key should contain service name")
-        self.assertIn(environment_type, key, "Service key should contain environment type")
-        self.assertIn(plan_id, key, "Service key should contain plan ID")
-        self.assertEqual(key, f"{service_name}:{environment_type}:{plan_id}")
+        self.assertIn(self.config.service_name, key, "Service key should contain service name")
+        self.assertIn(self.config.environment_type, key, "Service key should contain environment type")
+        self.assertIn(self.config.plan_id, key, "Service key should contain plan ID")
+        self.assertEqual(key, f"{self.config.service_name}:{self.config.environment_type}:{self.config.plan_id}")
         logger.info(f"✓ Service key generated correctly: {key}")
     
     def test_load_usage_data_state(self):
@@ -193,9 +197,8 @@ class TestOmnistrateMeteringReaderIntegration(unittest.TestCase):
         
         logger.info(f"Retrieving latest month for {service_name}:{environment_type}:{plan_id}")
         
-        result = self.reader.get_latest_month_with_complete_usage_data(
-            service_name, environment_type, plan_id
-        )
+        # OmnistrateMeteringReader now stores service info in instance
+        result = self.reader.get_latest_month_with_complete_usage_data()
         
         # Result can be None (if never processed) or a tuple of (year, month)
         if result is None:
@@ -216,26 +219,22 @@ class TestOmnistrateMeteringReaderIntegration(unittest.TestCase):
     
     def test_get_monthly_s3_prefix(self):
         """Test generation of monthly S3 prefix."""
-        service_name = "test-service"
-        environment_type = "PROD"
-        plan_id = "plan-123"
+        # OmnistrateMeteringReader now stores service info in instance
         year = 2025
         month = 1
         
-        prefix = self.reader.get_monthly_s3_prefix(
-            service_name, environment_type, plan_id, year, month
-        )
+        prefix = self.reader.get_monthly_s3_prefix(year, month)
         
         self.assertIsInstance(prefix, str, "Prefix should be a string")
         self.assertIn("omnistrate-metering", prefix, "Prefix should contain 'omnistrate-metering'")
-        self.assertIn(service_name, prefix, "Prefix should contain service name")
-        self.assertIn(environment_type, prefix, "Prefix should contain environment type")
-        self.assertIn(plan_id, prefix, "Prefix should contain plan ID")
+        self.assertIn(self.config.service_name, prefix, "Prefix should contain service name")
+        self.assertIn(self.config.environment_type, prefix, "Prefix should contain environment type")
+        self.assertIn(self.config.plan_id, prefix, "Prefix should contain plan ID")
         self.assertIn(f"{year:04d}", prefix, "Prefix should contain 4-digit year")
         self.assertIn(f"{month:02d}", prefix, "Prefix should contain 2-digit month")
         self.assertTrue(prefix.endswith('/'), "Prefix should end with /")
         
-        expected_prefix = f"omnistrate-metering/{service_name}/{environment_type}/{plan_id}/{year:04d}/{month:02d}/"
+        expected_prefix = f"omnistrate-metering/{self.config.service_name}/{self.config.environment_type}/{self.config.plan_id}/{year:04d}/{month:02d}/"
         self.assertEqual(prefix, expected_prefix, "Prefix format should match expected pattern")
         
         logger.info(f"✓ S3 prefix generated correctly: {prefix}")

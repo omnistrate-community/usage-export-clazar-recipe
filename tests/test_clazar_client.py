@@ -252,6 +252,43 @@ class TestClazarClient(unittest.TestCase):
         self.assertEqual(result["results"][0]["status"], "success")
         self.assertEqual(result["results"][0]["message"], "Dry run mode")
     
+    @patch('clazar_client.logging.getLogger')
+    def test_send_metering_data_dry_run_logging(self, mock_logger):
+        """Test that dry run mode logs detailed information"""
+        os.environ['DRY_RUN'] = 'true'
+        config = Config()
+        
+        # Create a mock logger instance
+        mock_logger_instance = Mock()
+        mock_logger.return_value = mock_logger_instance
+        
+        client = ClazarClient(config=config)
+        client.access_token = self.access_token
+        
+        records = [
+            {
+                "cloud": "aws",
+                "contract_id": "contract-123",
+                "dimension": "cpu_hours",
+                "quantity": "100"
+            }
+        ]
+        
+        result = client.send_metering_data(records)
+        
+        # Verify the result
+        self.assertIn("results", result)
+        self.assertEqual(len(result["results"]), 1)
+        
+        # Verify that logger.info was called with dry run messages
+        info_calls = [call[0][0] for call in mock_logger_instance.info.call_args_list]
+        
+        # Check that the expected log messages are present
+        self.assertTrue(any("DRY RUN MODE: Would send the following payload to Clazar:" in call for call in info_calls))
+        self.assertTrue(any("URL:" in call and "/metering/" in call for call in info_calls))
+        self.assertTrue(any("Payload:" in call for call in info_calls))
+        self.assertTrue(any("DRY RUN MODE: Skipping actual API call" in call for call in info_calls))
+    
     @patch('clazar_client.requests.post')
     def test_send_metering_data_http_error(self, mock_post):
         """Test metering data submission with HTTP error"""

@@ -75,14 +75,11 @@ class TestMeteringProcessor(unittest.TestCase):
         self.mock_metering_reader.get_latest_month_with_complete_usage_data.return_value = (2025, 3)
         
         result = self.processor.get_next_month_to_process(
-            'Postgres', 'PROD', 'test-plan-123', 
             default_start_month=(2025, 1)
         )
         
         self.assertEqual(result, (2025, 1))
-        self.mock_state_manager.get_last_processed_month.assert_called_once_with(
-            'Postgres', 'PROD', 'test-plan-123'
-        )
+        self.mock_state_manager.get_last_processed_month.assert_called_once_with()
 
     def test_get_next_month_to_process_next_month(self):
         """Test getting next month when already processed some months."""
@@ -90,7 +87,6 @@ class TestMeteringProcessor(unittest.TestCase):
         self.mock_metering_reader.get_latest_month_with_complete_usage_data.return_value = (2025, 3)
         
         result = self.processor.get_next_month_to_process(
-            'Postgres', 'PROD', 'test-plan-123',
             default_start_month=(2025, 1)
         )
         
@@ -102,7 +98,6 @@ class TestMeteringProcessor(unittest.TestCase):
         self.mock_metering_reader.get_latest_month_with_complete_usage_data.return_value = (2025, 3)
         
         result = self.processor.get_next_month_to_process(
-            'Postgres', 'PROD', 'test-plan-123',
             default_start_month=(2024, 1)
         )
         
@@ -114,7 +109,6 @@ class TestMeteringProcessor(unittest.TestCase):
         self.mock_metering_reader.get_latest_month_with_complete_usage_data.return_value = (2025, 3)
         
         result = self.processor.get_next_month_to_process(
-            'Postgres', 'PROD', 'test-plan-123',
             default_start_month=(2025, 1)
         )
         
@@ -126,7 +120,6 @@ class TestMeteringProcessor(unittest.TestCase):
         self.mock_metering_reader.get_latest_month_with_complete_usage_data.return_value = None
         
         result = self.processor.get_next_month_to_process(
-            'Postgres', 'PROD', 'test-plan-123',
             default_start_month=(2025, 1)
         )
         
@@ -236,13 +229,13 @@ class TestMeteringProcessor(unittest.TestCase):
         }
         
         # Mock contract-2 as already processed
-        def is_processed(service, env, plan, contract, year, month):
+        def is_processed(contract, year, month):
             return contract == 'contract-2'
         
         self.mock_state_manager.is_contract_month_processed.side_effect = is_processed
         
         result = self.processor.filter_success_contracts(
-            aggregated_data, 'Postgres', 'PROD', 'test-plan-123', 2025, 1
+            aggregated_data, 2025, 1
         )
         
         expected = {
@@ -316,26 +309,15 @@ class TestMeteringProcessor(unittest.TestCase):
 
     def test_send_to_clazar_no_client(self):
         """Test sending data to Clazar without client."""
-        processor = MeteringProcessor(
-            config=self.config,
-            metering_reader=self.mock_metering_reader,
-            state_manager=self.mock_state_manager,
-            clazar_client=None
-        )
+        with self.assertRaises(ValueError) as context:
+            processor = MeteringProcessor(
+                config=self.config,
+                metering_reader=self.mock_metering_reader,
+                state_manager=self.mock_state_manager,
+                clazar_client=None
+            )
         
-        aggregated_data = {
-            ('contract-1', 'dimension-1'): 100,
-        }
-        
-        start_time = datetime(2025, 1, 1)
-        end_time = datetime(2025, 1, 31, 23, 59, 59)
-        
-        result = processor.send_to_clazar(
-            aggregated_data, start_time, end_time,
-            'Postgres', 'PROD', 'test-plan-123'
-        )
-        
-        self.assertFalse(result)
+        self.assertIn("ClazarClient object is required", str(context.exception))
 
     def test_send_to_clazar_authentication_failure(self):
         """Test sending data to Clazar when authentication fails."""

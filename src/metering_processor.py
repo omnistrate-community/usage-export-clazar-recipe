@@ -188,16 +188,12 @@ class MeteringProcessor:
         return transformed_data
 
     def filter_success_contracts(self, aggregated_data: Dict[Tuple[str, str], float],
-                                  service_name: str, environment_type: str, plan_id: str,
                                   year: int, month: int) -> Dict[Tuple[str, str], float]:
         """
         Filter out contracts that have already been processed for this month.
         
         Args:
             aggregated_data: Aggregated usage data
-            service_name: Name of the service
-            environment_type: Environment type
-            plan_id: Plan ID
             year: Year
             month: Month
             
@@ -333,7 +329,7 @@ class MeteringProcessor:
             True if all retries were successful, False otherwise
         """
         error_contracts = self.state_manager.get_error_contracts_for_retry(service_name, environment_type, 
-                                                           plan_id, year, month)
+                                                                           plan_id, year, month)
         
         if not error_contracts:
             self.logger.info(f"No error contracts to retry for {year}-{month:02d}")
@@ -458,8 +454,7 @@ class MeteringProcessor:
                 return False
         
         # Filter out already processed contracts
-        filtered_data = self.filter_success_contracts(aggregated_data, service_name, 
-                                                       environment_type, plan_id, year, month)
+        filtered_data = self.filter_success_contracts(aggregated_data, year, month)
         
         if not filtered_data:
             self.logger.info(f"All contracts for {year}-{month:02d} have already been processed")

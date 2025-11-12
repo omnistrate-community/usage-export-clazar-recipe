@@ -179,15 +179,12 @@ class TestStateManagerIntegration(unittest.TestCase):
     
     def test_service_key_generation(self):
         """Test generating unique service keys."""
-        service_key = self.state_manager.get_service_key(
-            self.test_service,
-            self.test_env,
-            self.test_plan
-        )
-        
-        expected_key = f"{self.test_service}:{self.test_env}:{self.test_plan}"
-        self.assertEqual(service_key, expected_key, "Service key format should match")
-        logger.info(f"✓ Service key generated: {service_key}")
+        # The StateManager now stores service info in the file path instead of using a get_service_key method
+        # Verify the file path contains the service information
+        expected_substring = f"{self.test_service}-{self.test_env}-{self.test_plan}"
+        self.assertIn(expected_substring, self.state_manager.file_path, 
+                     "State file path should contain service information")
+        logger.info(f"✓ State file path validated: {self.state_manager.file_path}")
     
     def test_month_key_generation(self):
         """Test generating month keys."""
@@ -207,9 +204,6 @@ class TestStateManagerIntegration(unittest.TestCase):
         
         # Check initial status (should be False)
         is_processed = self.state_manager.is_contract_month_processed(
-            self.test_service,
-            self.test_env,
-            self.test_plan,
             self.test_contract,
             year,
             month
@@ -219,9 +213,6 @@ class TestStateManagerIntegration(unittest.TestCase):
         
         # Mark contract as processed
         self.state_manager.mark_contract_month_processed(
-            self.test_service,
-            self.test_env,
-            self.test_plan,
             self.test_contract,
             year,
             month
@@ -230,9 +221,6 @@ class TestStateManagerIntegration(unittest.TestCase):
         
         # Check status again (should be True)
         is_processed = self.state_manager.is_contract_month_processed(
-            self.test_service,
-            self.test_env,
-            self.test_plan,
             self.test_contract,
             year,
             month
@@ -262,16 +250,12 @@ class TestStateManagerIntegration(unittest.TestCase):
             error_messages,
             code=error_code,
             message=error_message,
-            payload=test_payload,
-            retry_count=0
+            payload=test_payload
         )
         logger.info("✓ Contract marked with error")
         
         # Verify contract is marked as processed (with error)
         is_processed = self.state_manager.is_contract_month_processed(
-            self.test_service,
-            self.test_env,
-            self.test_plan,
             self.test_contract,
             year,
             month
@@ -281,12 +265,8 @@ class TestStateManagerIntegration(unittest.TestCase):
         
         # Retrieve error contracts for retry
         retry_contracts = self.state_manager.get_error_contracts_for_retry(
-            self.test_service,
-            self.test_env,
-            self.test_plan,
             year,
-            month,
-            max_retries=5
+            month
         )
         
         self.assertEqual(len(retry_contracts), 1, "Should have one error contract")
@@ -318,16 +298,12 @@ class TestStateManagerIntegration(unittest.TestCase):
             self.test_contract,
             year,
             month,
-            ["Test error"],
-            retry_count=0
+            ["Test error"]
         )
         logger.info("✓ Contract marked with error")
         
         # Verify error exists
         retry_contracts = self.state_manager.get_error_contracts_for_retry(
-            self.test_service,
-            self.test_env,
-            self.test_plan,
             year,
             month
         )
@@ -335,9 +311,6 @@ class TestStateManagerIntegration(unittest.TestCase):
         
         # Remove error contract
         self.state_manager.remove_error_contract(
-            self.test_service,
-            self.test_env,
-            self.test_plan,
             self.test_contract,
             year,
             month
@@ -346,9 +319,6 @@ class TestStateManagerIntegration(unittest.TestCase):
         
         # Verify error is removed
         retry_contracts = self.state_manager.get_error_contracts_for_retry(
-            self.test_service,
-            self.test_env,
-            self.test_plan,
             year,
             month
         )
@@ -363,11 +333,7 @@ class TestStateManagerIntegration(unittest.TestCase):
         logger.info("Testing last processed month tracking...")
         
         # Check initial last processed month (should be None)
-        last_month = self.state_manager.get_last_processed_month(
-            self.test_service,
-            self.test_env,
-            self.test_plan
-        )
+        last_month = self.state_manager.get_last_processed_month()
         self.assertIsNone(last_month, "Last processed month should be None initially")
         logger.info("✓ Initial state verified (no last processed month)")
         
@@ -375,9 +341,6 @@ class TestStateManagerIntegration(unittest.TestCase):
         year = 2024
         month = 10
         self.state_manager.update_last_processed_month(
-            self.test_service,
-            self.test_env,
-            self.test_plan,
             year,
             month
         )
@@ -385,8 +348,6 @@ class TestStateManagerIntegration(unittest.TestCase):
         
         # Verify last processed month
         last_month = self.state_manager.get_last_processed_month(
-            self.test_service,
-            self.test_env,
             self.test_plan
         )
         self.assertIsNotNone(last_month, "Last processed month should be set")
@@ -397,20 +358,13 @@ class TestStateManagerIntegration(unittest.TestCase):
         new_year = 2024
         new_month = 11
         self.state_manager.update_last_processed_month(
-            self.test_service,
-            self.test_env,
-            self.test_plan,
             new_year,
             new_month
         )
         logger.info(f"✓ Updated last processed month to {new_year}-{new_month:02d}")
         
         # Verify update
-        last_month = self.state_manager.get_last_processed_month(
-            self.test_service,
-            self.test_env,
-            self.test_plan
-        )
+        last_month = self.state_manager.get_last_processed_month()
         self.assertEqual(last_month, (new_year, new_month), "Last processed month should be updated")
         logger.info(f"✓ Last processed month update verified: {last_month}")
         
@@ -425,21 +379,20 @@ class TestStateManagerIntegration(unittest.TestCase):
         month = 11
         max_retries = 3
         
-        # Mark contract with error at max retries
-        self.state_manager.mark_contract_month_error(
-            self.test_contract,
-            year,
-            month,
-            ["Max retries reached"],
-            retry_count=max_retries
-        )
-        logger.info(f"✓ Contract marked with error at retry count {max_retries}")
+        # Mark contract with error multiple times to reach max retries
+        for i in range(max_retries):
+            self.state_manager.mark_contract_month_error(
+                self.test_contract,
+                year,
+                month,
+                [f"Retry attempt {i+1}"]
+            )
+        logger.info(f"✓ Contract marked with error {max_retries} times")
         
         # Try to retrieve for retry
         retry_contracts = self.state_manager.get_error_contracts_for_retry(
             year,
-            month,
-            max_retries=max_retries
+            month
         )
         
         self.assertEqual(
@@ -464,9 +417,6 @@ class TestStateManagerIntegration(unittest.TestCase):
         
         # Mark first contract as processed
         self.state_manager.mark_contract_month_processed(
-            self.test_service,
-            self.test_env,
-            self.test_plan,
             contract1,
             year,
             month
@@ -477,15 +427,11 @@ class TestStateManagerIntegration(unittest.TestCase):
             contract2,
             year,
             month,
-            ["Error for contract 2"],
-            retry_count=0
+            ["Error for contract 2"]
         )
         
         # Mark third contract as processed
         self.state_manager.mark_contract_month_processed(
-            self.test_service,
-            self.test_env,
-            self.test_plan,
             contract3,
             year,
             month
@@ -496,28 +442,25 @@ class TestStateManagerIntegration(unittest.TestCase):
         # Verify all contracts are tracked
         self.assertTrue(
             self.state_manager.is_contract_month_processed(
-                self.test_service, self.test_env, self.test_plan, contract1, year, month
+                contract1, year, month
             ),
             "Contract 1 should be processed"
         )
         self.assertTrue(
             self.state_manager.is_contract_month_processed(
-                self.test_service, self.test_env, self.test_plan, contract2, year, month
+                contract2, year, month
             ),
             "Contract 2 should be processed (with error)"
         )
         self.assertTrue(
             self.state_manager.is_contract_month_processed(
-                self.test_service, self.test_env, self.test_plan, contract3, year, month
+                contract3, year, month
             ),
             "Contract 3 should be processed"
         )
         
         # Verify error contract can be retrieved
         retry_contracts = self.state_manager.get_error_contracts_for_retry(
-            self.test_service,
-            self.test_env,
-            self.test_plan,
             year,
             month
         )

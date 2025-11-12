@@ -321,18 +321,18 @@ class TestOmnistrateMeteringReader(unittest.TestCase):
         """Test that get_monthly_s3_prefix generates correct S3 prefix."""
         reader = OmnistrateMeteringReader(self.config)
         
-        prefix = reader.get_monthly_s3_prefix('my-service', 'PROD', 'plan-123', 2025, 1)
+        prefix = reader.get_monthly_s3_prefix(2025, 1)
         
-        self.assertEqual(prefix, 'omnistrate-metering/my-service/PROD/plan-123/2025/01/')
+        self.assertEqual(prefix, 'omnistrate-metering/test-service/PROD/test-plan/2025/01/')
 
     @patch('omnistrate_metering_reader.boto3.client')
     def test_get_monthly_s3_prefix_double_digit_month(self, mock_boto_client):
         """Test that get_monthly_s3_prefix formats month correctly."""
         reader = OmnistrateMeteringReader(self.config)
         
-        prefix = reader.get_monthly_s3_prefix('my-service', 'PROD', 'plan-123', 2025, 12)
+        prefix = reader.get_monthly_s3_prefix(2025, 12)
         
-        self.assertEqual(prefix, 'omnistrate-metering/my-service/PROD/plan-123/2025/12/')
+        self.assertEqual(prefix, 'omnistrate-metering/test-service/PROD/test-plan/2025/12/')
 
     @patch('omnistrate_metering_reader.boto3.client')
     def test_list_monthly_subscription_files_success(self, mock_boto_client):
@@ -354,7 +354,7 @@ class TestOmnistrateMeteringReader(unittest.TestCase):
         ]
         
         reader = OmnistrateMeteringReader(self.config)
-        files = reader.list_monthly_subscription_files('my-service', 'PROD', 'plan-123', 2025, 1)
+        files = reader.list_monthly_subscription_files(2025, 1)
         
         self.assertEqual(len(files), 2)
         self.assertIn('omnistrate-metering/my-service/PROD/plan-123/2025/01/file1.json', files)
@@ -364,7 +364,7 @@ class TestOmnistrateMeteringReader(unittest.TestCase):
         mock_s3.get_paginator.assert_called_once_with('list_objects_v2')
         mock_paginator.paginate.assert_called_once_with(
             Bucket='test-bucket',
-            Prefix='omnistrate-metering/my-service/PROD/plan-123/2025/01/'
+            Prefix='omnistrate-metering/test-service/PROD/test-plan/2025/01/'
         )
 
     @patch('omnistrate_metering_reader.boto3.client')
@@ -379,7 +379,7 @@ class TestOmnistrateMeteringReader(unittest.TestCase):
         mock_paginator.paginate.return_value = [{}]  # No 'Contents' key
         
         reader = OmnistrateMeteringReader(self.config)
-        files = reader.list_monthly_subscription_files('my-service', 'PROD', 'plan-123', 2025, 1)
+        files = reader.list_monthly_subscription_files(2025, 1)
         
         self.assertEqual(files, [])
 
@@ -394,7 +394,7 @@ class TestOmnistrateMeteringReader(unittest.TestCase):
         mock_s3.get_paginator.side_effect = ClientError(error_response, 'ListObjectsV2')
         
         reader = OmnistrateMeteringReader(self.config)
-        files = reader.list_monthly_subscription_files('my-service', 'PROD', 'plan-123', 2025, 1)
+        files = reader.list_monthly_subscription_files(2025, 1)
         
         self.assertEqual(files, [])
 
@@ -483,7 +483,7 @@ class TestOmnistrateMeteringReader(unittest.TestCase):
         ]
         
         reader = OmnistrateMeteringReader(self.config)
-        files = reader.list_monthly_subscription_files('my-service', 'PROD', 'plan-123', 2025, 1)
+        files = reader.list_monthly_subscription_files(2025, 1)
         
         self.assertEqual(len(files), 4)
         self.assertIn('omnistrate-metering/my-service/PROD/plan-123/2025/01/file1.json', files)
