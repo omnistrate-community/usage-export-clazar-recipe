@@ -276,12 +276,10 @@ class MeteringProcessor:
                     self.logger.info(f"Response: {response_data}")
                     
                     # Remove from error contracts if it was previously failed
-                    self.state_manager.remove_error_contract(service_name, environment_type, plan_id, 
-                                             contract_id, year, month)
+                    self.state_manager.remove_error_contract(contract_id,year, month)
                     
                     # Mark as successfully processed
-                    self.state_manager.mark_contract_month_processed(service_name, environment_type, plan_id, 
-                                                     contract_id, year, month)
+                    self.state_manager.mark_contract_month_processed(contract_id,year, month)
                     success = True
                     
             except ClazarAPIError as e:
@@ -293,8 +291,7 @@ class MeteringProcessor:
                 
             except Exception as e:
                 self.logger.error(f"Unexpected error for contract {contract_id}: {e}")
-                self.state_manager.mark_contract_month_error(service_name, environment_type, plan_id, 
-                                             contract_id, year, month, [str(e)], 
+                self.state_manager.mark_contract_month_error(contract_id, year, month, [str(e)], 
                                              "UNEXPECTED_ERROR", str(e), {"request": records})
                 all_success = False
             
