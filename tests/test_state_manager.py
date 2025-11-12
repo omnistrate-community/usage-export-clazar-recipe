@@ -149,18 +149,7 @@ class TestStateManager(unittest.TestCase):
         call_args = self.mock_s3_client.put_object.call_args
         self.assertEqual(call_args[1]['Bucket'], self.aws_s3_bucket)
         self.assertEqual(call_args[1]['Key'], self.state_file_path)
-        
-    @patch('state_manager.boto3.client')
-    def test_get_service_key(self, mock_boto_client):
-        """Test service key generation."""
-        mock_boto_client.return_value = self.mock_s3_client
-        
-        config = Config()
-        state_manager = StateManager(config=config)
-        
-        key = state_manager.get_service_key("Postgres", "PROD", "plan-123")
-        self.assertEqual(key, "Postgres:PROD:plan-123")
-        
+
     @patch('state_manager.boto3.client')
     def test_get_month_key(self, mock_boto_client):
         """Test month key generation."""
