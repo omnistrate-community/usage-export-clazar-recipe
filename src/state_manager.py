@@ -162,15 +162,11 @@ class StateManager:
         """
         return f"{year:04d}-{month:02d}"
 
-    def is_contract_month_processed(self, service_name: str, environment_type: str, 
-                                   plan_id: str, contract_id: str, year: int, month: int) -> bool:
+    def is_contract_month_processed(self, contract_id: str, year: int, month: int) -> bool:
         """
         Check if a specific contract for a month has been processed (either successfully or with errors).
         
         Args:
-            service_name: Name of the service
-            environment_type: Environment type
-            plan_id: Plan ID
             contract_id: Contract ID (external payer ID)
             year: Year
             month: Month
@@ -201,9 +197,6 @@ class StateManager:
         Mark a specific contract for a month as processed (successfully).
         
         Args:
-            service_name: Name of the service
-            environment_type: Environment type
-            plan_id: Plan ID
             contract_id: Contract ID (external payer ID)
             year: Year
             month: Month
@@ -230,9 +223,6 @@ class StateManager:
         Mark a specific contract for a month as having errors.
         
         Args:
-            service_name: Name of the service
-            environment_type: Environment type
-            plan_id: Plan ID
             contract_id: Contract ID (external payer ID)
             year: Year
             month: Month
@@ -317,15 +307,11 @@ class StateManager:
         
         return retry_contracts
 
-    def remove_error_contract(self, service_name: str, environment_type: str, 
-                             plan_id: str, contract_id: str, year: int, month: int):
+    def remove_error_contract(self, contract_id: str, year: int, month: int):
         """
         Remove a contract from error contracts (when it succeeds on retry).
         
         Args:
-            service_name: Name of the service
-            environment_type: Environment type
-            plan_id: Plan ID
             contract_id: Contract ID
             year: Year
             month: Month
@@ -370,15 +356,11 @@ class StateManager:
             self.logger.error(f"Error parsing last processed month for state in {self.file_path}: {e}")
             return None
 
-    def update_last_processed_month(self, service_name: str, environment_type: str, 
-                                   plan_id: str, year: int, month: int):
+    def update_last_processed_month(self, year: int, month: int):
         """
         Update the last processed month for a specific service configuration.
         
         Args:
-            service_name: Name of the service
-            environment_type: Environment type
-            plan_id: Plan ID
             year: Year of the month that was processed
             month: Month that was processed
         """

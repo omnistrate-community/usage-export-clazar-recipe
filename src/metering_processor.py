@@ -207,8 +207,7 @@ class MeteringProcessor:
         filtered_data = {}
         
         for (contract_id, dimension), quantity in aggregated_data.items():
-            if not self.state_manager.is_contract_month_processed(service_name, environment_type, plan_id, 
-                                                   contract_id, year, month):
+            if not self.state_manager.is_contract_month_processed(contract_id, year, month):
                 filtered_data[(contract_id, dimension)] = quantity
             else:
                 self.logger.info(f"Skipping already processed contract {contract_id} for {year}-{month:02d}")
@@ -496,8 +495,7 @@ class MeteringProcessor:
         """
         self.logger.info(f"Starting processing for {service_name}/{environment_type}/{plan_id}")
         
-        next_month = self.get_next_month_to_process(service_name, environment_type, plan_id, 
-                                                    default_start_month=start_month)
+        next_month = self.get_next_month_to_process(default_start_month=start_month)
         
         if next_month is None:
             self.logger.info("No more months to process, caught up!")
