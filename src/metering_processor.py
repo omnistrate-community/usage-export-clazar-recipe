@@ -425,7 +425,7 @@ class MeteringProcessor:
         # Read and aggregate all usage data
         all_usage_records = []
         for file_key in subscription_files:
-            usage_records = self.read_s3_json_file(file_key)
+            usage_records = self.metering_reader.read_s3_json_file(file_key)
             all_usage_records.extend(usage_records)
         
         if not all_usage_records:
