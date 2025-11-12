@@ -129,9 +129,9 @@ class TestOmnistrateMeteringReader(unittest.TestCase):
         """Test that get_service_key generates correct service key."""
         reader = OmnistrateMeteringReader(self.config)
         
-        key = reader.get_service_key('my-service', 'PROD', 'plan-123')
+        key = reader.get_service_key()
         
-        self.assertEqual(key, 'my-service:PROD:plan-123')
+        self.assertEqual(key, 'test-service:PROD:test-plan')
 
     @patch('omnistrate_metering_reader.boto3.client')
     def test_load_usage_data_state_success(self, mock_boto_client):
@@ -216,7 +216,7 @@ class TestOmnistrateMeteringReader(unittest.TestCase):
         
         # Mock S3 response
         state_data = {
-            'my-service:PROD:plan-123': {
+            'test-service:PROD:test-plan': {
                 'lastSuccessfulExport': '2025-01-31T23:59:59Z'
             }
         }
@@ -227,7 +227,7 @@ class TestOmnistrateMeteringReader(unittest.TestCase):
         mock_s3.get_object.return_value = mock_response
         
         reader = OmnistrateMeteringReader(self.config)
-        result = reader.get_latest_month_with_complete_usage_data('my-service', 'PROD', 'plan-123')
+        result = reader.get_latest_month_with_complete_usage_data()
         
         self.assertEqual(result, (2025, 1))
 
@@ -245,7 +245,7 @@ class TestOmnistrateMeteringReader(unittest.TestCase):
         mock_s3.get_object.return_value = mock_response
         
         reader = OmnistrateMeteringReader(self.config)
-        result = reader.get_latest_month_with_complete_usage_data('my-service', 'PROD', 'plan-123')
+        result = reader.get_latest_month_with_complete_usage_data()
         
         self.assertIsNone(result)
 
@@ -268,7 +268,7 @@ class TestOmnistrateMeteringReader(unittest.TestCase):
         mock_s3.get_object.return_value = mock_response
         
         reader = OmnistrateMeteringReader(self.config)
-        result = reader.get_latest_month_with_complete_usage_data('my-service', 'PROD', 'plan-123')
+        result = reader.get_latest_month_with_complete_usage_data()
         
         self.assertIsNone(result)
 
@@ -280,7 +280,7 @@ class TestOmnistrateMeteringReader(unittest.TestCase):
         
         # Mock S3 response without lastSuccessfulExport
         state_data = {
-            'my-service:PROD:plan-123': {}
+            'test-service:PROD:test-plan': {}
         }
         mock_response = {
             'Body': Mock()
@@ -289,7 +289,7 @@ class TestOmnistrateMeteringReader(unittest.TestCase):
         mock_s3.get_object.return_value = mock_response
         
         reader = OmnistrateMeteringReader(self.config)
-        result = reader.get_latest_month_with_complete_usage_data('my-service', 'PROD', 'plan-123')
+        result = reader.get_latest_month_with_complete_usage_data()
         
         self.assertIsNone(result)
 
@@ -301,7 +301,7 @@ class TestOmnistrateMeteringReader(unittest.TestCase):
         
         # Mock S3 response with invalid date format
         state_data = {
-            'my-service:PROD:plan-123': {
+            'test-service:PROD:test-plan': {
                 'lastSuccessfulExport': 'invalid-date'
             }
         }
@@ -312,7 +312,7 @@ class TestOmnistrateMeteringReader(unittest.TestCase):
         mock_s3.get_object.return_value = mock_response
         
         reader = OmnistrateMeteringReader(self.config)
-        result = reader.get_latest_month_with_complete_usage_data('my-service', 'PROD', 'plan-123')
+        result = reader.get_latest_month_with_complete_usage_data()
         
         self.assertIsNone(result)
 

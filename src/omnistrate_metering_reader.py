@@ -122,11 +122,6 @@ class OmnistrateMeteringReader:
     def get_latest_month_with_complete_usage_data(self) -> Optional[Tuple[int, int]]:
         """
         Get the latest month for which complete usage data is available.
-        
-        Args:
-            service_name: Name of the service
-            environment_type: Environment type
-            plan_id: Plan ID
             
         Returns:
             Tuple of (year, month) for last processed month, or None if never processed
@@ -155,9 +150,8 @@ class OmnistrateMeteringReader:
         except (KeyError, ValueError) as e:
             self.logger.error(f"Error parsing last successful export for {service_key}: {e}")
             return None
-
-    def get_monthly_s3_prefix(self, service_name: str, environment_type: str, 
-                             plan_id: str, year: int, month: int) -> str:
+    
+    def get_monthly_s3_prefix(self, year: int, month: int) -> str:
         """
         Generate S3 prefix for a specific month.
         
@@ -171,10 +165,10 @@ class OmnistrateMeteringReader:
         Returns:
             S3 prefix string for the entire month
         """
-        return (f"omnistrate-metering/{service_name}/{environment_type}/"
-                f"{plan_id}/{year:04d}/{month:02d}/")
+        return (f"omnistrate-metering/{self.service_name}/{self.environment_type}/"
+                f"{self.plan_id}/{year:04d}/{month:02d}/")
 
-    def list_monthly_subscription_files(self, service_name: str, environment_type: str, plan_id: str, year: int, month: int) -> List[str]:
+    def list_monthly_subscription_files(self, year: int, month: int) -> List[str]:
         """
         List all subscription JSON files in the given S3 prefix (for entire month).
         
@@ -185,7 +179,7 @@ class OmnistrateMeteringReader:
             List of S3 object keys
         """
         # Get S3 prefix for the month
-        prefix = self.get_monthly_s3_prefix(service_name, environment_type, plan_id, year, month)
+        prefix = self.get_monthly_s3_prefix(year, month)
         try:
             paginator = self.s3_client.get_paginator('list_objects_v2')
             page_iterator = paginator.paginate(

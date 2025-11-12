@@ -31,31 +31,49 @@ class MeteringProcessor:
             state_manager: StateManager instance for state persistence
             clazar_client: ClazarClient instance for API interactions
         """
+        if not config:
+            raise ValueError("Configuration object is required to initialize MeteringProcessor.")
+        if not config.service_name:
+            raise ValueError("Service name is not configured.")
+        if not config.environment_type:
+            raise ValueError("Environment type is not configured.")
+        if not config.plan_id:
+            raise ValueError("Plan ID is not configured.")  
+        if not metering_reader:
+            raise ValueError("OmnistrateMeteringReader object is required to initialize MeteringProcessor.")
+        if not state_manager:
+            raise ValueError("StateManager object is required to initialize MeteringProcessor.")
+        if not clazar_client:
+            raise ValueError("ClazarClient object is required to initialize MeteringProcessor.")
+        if not config.aws_s3_bucket:
+            raise ValueError("AWS S3 bucket name is not configured.")
+        if not config.clazar_cloud:
+            raise ValueError("Clazar cloud is not configured.")
+
         self.aws_s3_bucket = config.aws_s3_bucket
         self.state_manager = state_manager
         self.clazar_client = clazar_client
         self.clazar_cloud = config.clazar_cloud
         self.custom_dimensions = config.custom_dimensions or {}
         self.metering_reader = metering_reader
+        self.service_name = config.service_name
+        self.environment_type = config.environment_type
+        self.plan_id = config.plan_id
 
         self.logger = logging.getLogger(__name__)
 
-    def get_next_month_to_process(self, service_name: str, environment_type: str, 
-                                 plan_id: str, default_start_month: Optional[Tuple[int, int]] = None) -> Optional[Tuple[int, int]]:
+    def get_next_month_to_process(self, default_start_month: Optional[Tuple[int, int]] = None) -> Optional[Tuple[int, int]]:
         """
         Get the next month that needs to be processed.
         
         Args:
-            service_name: Name of the service
-            environment_type: Environment type
-            plan_id: Plan ID
             default_start_month: Optional default start month (as tuple of (year, month))
             
         Returns:
             Tuple of (year, month) for next month to process, or None if caught up
         """
         last_processed = self.state_manager.get_last_processed_month()
-        latest_month_with_complete_usage_data = self.metering_reader.get_latest_month_with_complete_usage_data(service_name, environment_type, plan_id)
+        latest_month_with_complete_usage_data = self.metering_reader.get_latest_month_with_complete_usage_data()
         if latest_month_with_complete_usage_data is None:
             self.logger.error(f"Failed to retrieve latest month with complete usage data")
             return None
@@ -276,10 +294,10 @@ class MeteringProcessor:
                     self.logger.info(f"Response: {response_data}")
                     
                     # Remove from error contracts if it was previously failed
-                    self.state_manager.remove_error_contract(contract_id,year, month)
+                    self.state_manager.remove_error_contract(contract_id, year, month)
                     
                     # Mark as successfully processed
-                    self.state_manager.mark_contract_month_processed(contract_id,year, month)
+                    self.state_manager.mark_contract_month_processed(contract_id, year, month)
                     success = True
                     
             except ClazarAPIError as e:
@@ -311,7 +329,6 @@ class MeteringProcessor:
             plan_id: Plan ID
             year: Year
             month: Month
-            max_retries: Maximum retry attempts
             
         Returns:
             True if all retries were successful, False otherwise
