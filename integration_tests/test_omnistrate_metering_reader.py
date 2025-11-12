@@ -258,9 +258,8 @@ class TestOmnistrateMeteringReaderIntegration(unittest.TestCase):
         logger.info(f"Listing subscription files for {year:04d}-{month:02d}")
         
         try:
-            files = self.reader.list_monthly_subscription_files(
-                service_name, environment_type, plan_id, year, month
-            )
+            # OmnistrateMeteringReader now stores service info in instance
+            files = self.reader.list_monthly_subscription_files(year, month)
             
             # Result should be a list (may be empty)
             self.assertIsInstance(files, list, "Result should be a list")
@@ -314,9 +313,8 @@ class TestOmnistrateMeteringReaderIntegration(unittest.TestCase):
             logger.info(f"Checking {year:04d}-{month:02d}...")
             
             try:
-                files = self.reader.list_monthly_subscription_files(
-                    service_name, environment_type, plan_id, year, month
-                )
+                # OmnistrateMeteringReader now stores service info in instance
+                files = self.reader.list_monthly_subscription_files(year, month)
                 
                 self.assertIsInstance(files, list, "Result should be a list")
                 
@@ -370,9 +368,8 @@ class TestOmnistrateMeteringReaderIntegration(unittest.TestCase):
             
             logger.info(f"Looking for files in {year:04d}-{month:02d}...")
             
-            files = self.reader.list_monthly_subscription_files(
-                service_name, environment_type, plan_id, year, month
-            )
+            # OmnistrateMeteringReader now stores service info in instance
+            files = self.reader.list_monthly_subscription_files(year, month)
             
             if files:
                 file_to_read = files[0]  # Read first file found
