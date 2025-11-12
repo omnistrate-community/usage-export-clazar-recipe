@@ -256,9 +256,6 @@ class TestStateManagerIntegration(unittest.TestCase):
         
         # Mark contract with error
         self.state_manager.mark_contract_month_error(
-            self.test_service,
-            self.test_env,
-            self.test_plan,
             self.test_contract,
             year,
             month,
@@ -318,9 +315,6 @@ class TestStateManagerIntegration(unittest.TestCase):
         
         # Mark contract with error
         self.state_manager.mark_contract_month_error(
-            self.test_service,
-            self.test_env,
-            self.test_plan,
             self.test_contract,
             year,
             month,
@@ -433,9 +427,6 @@ class TestStateManagerIntegration(unittest.TestCase):
         
         # Mark contract with error at max retries
         self.state_manager.mark_contract_month_error(
-            self.test_service,
-            self.test_env,
-            self.test_plan,
             self.test_contract,
             year,
             month,
@@ -446,9 +437,6 @@ class TestStateManagerIntegration(unittest.TestCase):
         
         # Try to retrieve for retry
         retry_contracts = self.state_manager.get_error_contracts_for_retry(
-            self.test_service,
-            self.test_env,
-            self.test_plan,
             year,
             month,
             max_retries=max_retries
@@ -486,9 +474,6 @@ class TestStateManagerIntegration(unittest.TestCase):
         
         # Mark second contract with error
         self.state_manager.mark_contract_month_error(
-            self.test_service,
-            self.test_env,
-            self.test_plan,
             contract2,
             year,
             month,
