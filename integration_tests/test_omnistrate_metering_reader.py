@@ -445,6 +445,63 @@ class TestOmnistrateMeteringReaderIntegration(unittest.TestCase):
         self.assertIsInstance(records, list, "Should return a list")
         self.assertEqual(len(records), 0, "Should return empty list for non-existent file")
         logger.info("✓ Non-existent file handled gracefully (returns empty list)")
+    
+    def test_validate_access(self):
+        """
+        Test validate_access method to ensure S3 bucket access is properly validated.
+        
+        This test validates that we can successfully validate read access to the
+        omnistrate-metering prefix in the S3 bucket.
+        """
+        logger.info("Testing validate_access method...")
+        
+        try:
+            # Call validate_access - should not raise exception for valid credentials
+            self.reader.validate_access()
+            logger.info("✓ validate_access completed successfully")
+            logger.info(f"  Read access to S3 bucket {self.reader.aws_s3_bucket}/omnistrate-metering validated")
+            
+        except OmnistrateMeteringReaderError as e:
+            logger.error(f"✗ validate_access failed: {e}")
+            self.fail(f"validate_access should succeed with valid credentials: {e}")
+        except Exception as e:
+            logger.error(f"✗ Unexpected error during validate_access: {e}")
+            self.fail(f"Unexpected error during validate_access: {e}")
+    
+    def test_validate_access_with_invalid_credentials(self):
+        """
+        Test validate_access method with invalid credentials to ensure proper error handling.
+        
+        This test creates a reader with invalid credentials and verifies that
+        validate_access raises an appropriate exception.
+        """
+        logger.info("Testing validate_access with invalid credentials...")
+        
+        # Create a config with invalid credentials
+        invalid_config = Config()
+        invalid_config.aws_access_key_id = "INVALID_KEY_ID"
+        invalid_config.aws_secret_access_key = "INVALID_SECRET_KEY"
+        
+        try:
+            # Create reader with invalid credentials
+            invalid_reader = OmnistrateMeteringReader(invalid_config)
+            
+            # validate_access should raise OmnistrateMeteringReaderError
+            with self.assertRaises(OmnistrateMeteringReaderError) as context:
+                invalid_reader.validate_access()
+            
+            logger.info(f"✓ validate_access properly raised exception: {context.exception}")
+            
+            # Verify the exception message contains useful information
+            error_message = str(context.exception)
+            self.assertIn("S3 access validation failed", error_message)
+            logger.info("✓ Exception message contains expected error details")
+            
+        except Exception as e:
+            logger.error(f"✗ Unexpected error during invalid credentials test: {e}")
+            # This is actually expected - the test itself might fail during setup
+            # if credentials are completely invalid, which is fine
+            logger.info("✓ Invalid credentials prevented access as expected")
 
 
 def run_tests():

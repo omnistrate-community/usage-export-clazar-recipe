@@ -212,8 +212,7 @@ class MeteringProcessor:
         return filtered_data
 
     def send_to_clazar(self, aggregated_data: Dict[Tuple[str, str], float], 
-                      start_time: datetime, end_time: datetime,
-                      service_name: str, environment_type: str, plan_id: str) -> bool:
+                      start_time: datetime, end_time: datetime) -> bool:
         """
         Send aggregated usage data to Clazar and track processed contracts.
         Includes retry logic with exponential backoff for failed contracts.
@@ -222,9 +221,6 @@ class MeteringProcessor:
             aggregated_data: Aggregated usage data
             start_time: Start time for the metering period
             end_time: End time for the metering period
-            service_name: Name of the service
-            environment_type: Environment type
-            plan_id: Plan ID
             
         Returns:
             True if successful, False otherwise
@@ -279,9 +275,8 @@ class MeteringProcessor:
                 if has_errors:
                     self.logger.error(f"Failed to send data for contract {contract_id}: {error_code} - {error_message}")
                     self.logger.error(f"Errors: {errors}")
-                    self.state_manager.mark_contract_month_error(service_name, environment_type, plan_id, 
-                                                 contract_id, year, month, errors, error_code, 
-                                                 error_message, {"request": records})
+                    self.state_manager.mark_contract_month_error(contract_id, year, month, errors, error_code, 
+                                                                 error_message, {"request": records})
                     all_success = False
                 else:
                     # Success
@@ -297,9 +292,8 @@ class MeteringProcessor:
                     
             except ClazarAPIError as e:
                 self.logger.error(f"Clazar API error for contract {contract_id}: {e.message}")
-                self.state_manager.mark_contract_month_error(service_name, environment_type, plan_id, 
-                                             contract_id, year, month, [e.message], 
-                                             "API_ERROR", e.message, {"request": records})
+                self.state_manager.mark_contract_month_error(contract_id, year, month, [e.message], 
+                                                            "API_ERROR", e.message, {"request": records})
                 all_success = False
                 
             except Exception as e:
@@ -403,15 +397,11 @@ class MeteringProcessor:
         
         return all_success
 
-    def process_month(self, service_name: str, environment_type: str, 
-                     plan_id: str, year: int, month: int) -> bool:
+    def process_month(self, year: int, month: int) -> bool:
         """
         Process usage data for a specific month.
         
         Args:
-            service_name: Name of the service
-            environment_type: Environment type
-            plan_id: Plan ID
             year: Year to process
             month: Month to process
             max_retries: Maximum retry attempts for failed contracts
@@ -419,13 +409,13 @@ class MeteringProcessor:
         Returns:
             True if successful, False otherwise
         """
-        self.logger.info(f"Processing month: {year}-{month:02d} for {service_name}/{environment_type}/{plan_id}")
+        self.logger.info(f"Processing month: {year}-{month:02d} for {self.service_name}/{self.environment_type}/{self.plan_id}")
         
         # First, retry any existing error contracts
-        retry_success = self.retry_error_contracts(service_name, environment_type, plan_id, year, month)
+        retry_success = self.retry_error_contracts(year, month)
         
         # List all subscription files for the month
-        subscription_files = self.metering_reader.list_monthly_subscription_files(service_name, environment_type, plan_id, year, month)
+        subscription_files = self.metering_reader.list_monthly_subscription_files(year, month)
         
         if not subscription_files:
             self.logger.info(f"No subscription files found for {year}-{month:02d}")
@@ -468,27 +458,22 @@ class MeteringProcessor:
         end_time = datetime(year, month, last_day, 23, 59, 59)
         
         # Send to Clazar
-        send_success = self.send_to_clazar(filtered_data, start_time, end_time, 
-                                         service_name, environment_type, plan_id)
+        send_success = self.send_to_clazar(filtered_data, start_time, end_time)
         
         # Return True only if both retry and send operations were successful
         return retry_success and send_success
 
-    def process_next_month(self, service_name: str, environment_type: str, 
-                          plan_id: str, start_month: tuple = (2025, 1)) -> bool:
+    def process_next_month(self, start_month: tuple = (2025, 1)) -> bool:
         """
         Process the next pending month for a specific service configuration.
         
         Args:
-            service_name: Name of the service
-            environment_type: Environment type
-            plan_id: Plan ID
             start_month: Default start month if no previous processing history
             
         Returns:
             True if processing was successful, False otherwise
         """
-        self.logger.info(f"Starting processing for {service_name}/{environment_type}/{plan_id}")
+        self.logger.info(f"Starting processing for {self.service_name}/{self.environment_type}/{self.plan_id}")
         
         next_month = self.get_next_month_to_process(default_start_month=start_month)
         
@@ -499,75 +484,22 @@ class MeteringProcessor:
         year, month = next_month
         self.logger.info(f"Processing month: {year}-{month:02d}")
         
-        success = self.process_month(service_name, environment_type, plan_id, year, month)
+        success = self.process_month(year, month)
         
         if success:
             # Update state only if processing was successful
-            self.state_manager.update_last_processed_month(service_name, environment_type, plan_id, year, month)
+            self.state_manager.update_last_processed_month(year, month)
             self.logger.info(f"Successfully processed month {year}-{month:02d}")
         else:
             self.logger.error(f"Failed to process month {year}-{month:02d}")
         
         return success
 
-def main_processing():
-    """Main processing function to run the metering processor."""
-
-    # Load and validate configuration
+def main_processing(processor : MeteringProcessor, default_start_year: int, default_start_month: int) -> bool:
+    """Main processing function to run the metering processor."""       
     try:
-        config = Config()
-        config.setup_logging()
-        config.validate_all()
-        config.print_summary()
-    except ConfigurationError as e:
-        logging.error(f"Error: {e}")
-        sys.exit(1)
-
-        
-    try:
-        # Initialize Omnistrate metering reader
-        logging.info("Initializing Omnistrate metering reader...")
-        metering_reader = OmnistrateMeteringReader(config)
-        logging.info("Omnistrate metering reader initialized successfully")
-        try :
-            metering_reader.validate_access()
-            logging.info("Omnistrate metering reader validated successfully")
-        except Exception as e:
-            logging.error(f"Error validating Omnistrate metering reader: {e}")
-            sys.exit(1)
-
-        # Initialize StateManager and validate access
-        logging.info("Initializing state manager...")
-        state_manager = StateManager(config)
-        try:
-            state_manager.validate_access()
-            logging.info("State manager validated successfully")
-        except StateManagerError as e:
-            logging.error(f"Error validating state manager: {e}")
-            sys.exit(1)
-        
-        # Initialize Clazar client and authenticate
-        clazar_client = ClazarClient(config)
-        try:
-            clazar_client.authenticate()
-            logging.info("Clazar client authenticated successfully")
-        except ClazarAPIError as e:
-            logging.error(f"Error authenticating with Clazar: {e.message}")
-            sys.exit(1)
-
-        # Initialize the processor
-        processor = MeteringProcessor(
-            config=config,
-            state_manager=state_manager,
-            clazar_client=clazar_client,
-        )
-        
-        # Process next month
-        start_year, start_month = config.validate_start_month()
-
         success = processor.process_next_month(
-            config.service_name, config.environment_type, config.plan_id, 
-             (start_year, start_month)
+             (default_start_year, default_start_month)
         )
         
         if success:
@@ -597,9 +529,59 @@ def main_processing():
 def main():
     """Main function to run the metering processor in a continuous loop."""
     import time
+
+    # Load and validate configuration
+    try:
+        config = Config()
+        config.setup_logging()
+        config.validate_all()
+        config.print_summary()
+    except ConfigurationError as e:
+        logging.error(f"Error: {e}")
+        sys.exit(1)
+
+    # Initialize Omnistrate metering reader
+    logging.info("Initializing Omnistrate metering reader...")
+    metering_reader = OmnistrateMeteringReader(config)
+    logging.info("Omnistrate metering reader initialized successfully")
+    try :
+        metering_reader.validate_access()
+        logging.info("Omnistrate metering reader validated successfully")
+    except Exception as e:
+        logging.error(f"Error validating Omnistrate metering reader: {e}")
+        sys.exit(1)
+
+    # Initialize StateManager and validate access
+    logging.info("Initializing state manager...")
+    state_manager = StateManager(config)
+    try:
+        state_manager.validate_access()
+        logging.info("State manager validated successfully")
+    except StateManagerError as e:
+        logging.error(f"Error validating state manager: {e}")
+        sys.exit(1)
+    
+    # Initialize Clazar client and authenticate
+    clazar_client = ClazarClient(config)
+    try:
+        clazar_client.authenticate()
+        logging.info("Clazar client authenticated successfully")
+    except ClazarAPIError as e:
+        logging.error(f"Error authenticating with Clazar: {e.message}")
+        sys.exit(1)
+
+    # Initialize the processor
+    processor = MeteringProcessor(
+        config=config,
+        state_manager=state_manager,
+        clazar_client=clazar_client,
+    )
     
     # Run once initially
     logging.info("Starting metering processor in continuous mode (5-minute interval)")
+
+    # Process next month
+    default_start_year, default_start_month = config.validate_start_month()
     
     while True:
         try:
@@ -607,7 +589,7 @@ def main():
             logging.info("Starting processing cycle at %s", time.strftime('%Y-%m-%d %H:%M:%S'))
             logging.info("=" * 80)
             
-            success = main_processing()
+            success = main_processing(processor, default_start_year, default_start_month)
             
             if success:
                 logging.info("Processing cycle completed successfully")

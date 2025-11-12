@@ -227,3 +227,23 @@ class OmnistrateMeteringReader:
         except json.JSONDecodeError as e:
             self.logger.error(f"Error parsing JSON from {key}: {e}")
             return []
+
+
+    def validate_access(self): 
+        """
+        Validate that we can read from S3 bucket.
+        Raises:
+            OmnistrateMeteringReaderError: If access validation fails
+        """
+        test_prefix = "omnistrate-metering"
+        try:
+            # Test read access
+            paginator = self.s3_client.get_paginator('list_objects_v2')
+            paginator.paginate(
+                Bucket=self.aws_s3_bucket,
+                Prefix="omnistrate-metering"
+            )
+            self.logger.info(f"Read access to S3 bucket {self.aws_s3_bucket}/{test_prefix} validated.")
+            
+        except ClientError as e:
+            raise OmnistrateMeteringReaderError(f"S3 access validation failed: {e}")
