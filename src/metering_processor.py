@@ -307,23 +307,18 @@ class MeteringProcessor:
         
         return all_success
 
-    def retry_error_contracts(self, service_name: str, environment_type: str, 
-                             plan_id: str, year: int, month: int) -> bool:
+    def retry_error_contracts(self, year: int, month: int) -> bool:
         """
         Retry sending failed contracts for a specific month.
         
         Args:
-            service_name: Name of the service
-            environment_type: Environment type
-            plan_id: Plan ID
             year: Year
             month: Month
             
         Returns:
             True if all retries were successful, False otherwise
         """
-        error_contracts = self.state_manager.get_error_contracts_for_retry(service_name, environment_type, 
-                                                                           plan_id, year, month)
+        error_contracts = self.state_manager.get_error_contracts_for_retry(year, month)
         
         if not error_contracts:
             self.logger.info(f"No error contracts to retry for {year}-{month:02d}")
@@ -363,7 +358,7 @@ class MeteringProcessor:
                     self.logger.error(f"Errors: {errors}")
                     
                     # Update error entry with new retry count
-                    self.state_manager.mark_contract_month_error(service_name, environment_type, plan_id, 
+                    self.state_manager.mark_contract_month_error(
                                                  contract_id, year, month, errors, error_code, 
                                                  error_message, payload,)
                     all_success = False
@@ -372,24 +367,22 @@ class MeteringProcessor:
                     self.logger.info(f"Successfully retried contract {contract_id}")
                     self.logger.info(f"Response: {response_data}")
                     
-                    self.state_manager.remove_error_contract(service_name, environment_type, plan_id, 
-                                             contract_id, year, month)
-                    self.state_manager.mark_contract_month_processed(service_name, environment_type, plan_id, 
-                                                     contract_id, year, month)
+                    self.state_manager.remove_error_contract(contract_id, year, month)
+                    self.state_manager.mark_contract_month_processed(contract_id, year, month)
                     success = True
                     
             except ClazarAPIError as e:
                 self.logger.error(f"Clazar API error retrying contract {contract_id}: {e.message}")
-                self.state_manager.mark_contract_month_error(service_name, environment_type, plan_id, 
-                                             contract_id, year, month, [e.message], "RETRY_ERROR", 
-                                             e.message, payload)
+                self.state_manager.mark_contract_month_error(contract_id, year, month, 
+                                                             [e.message], "RETRY_ERROR", 
+                                                             e.message, payload)
                 all_success = False
                 
             except Exception as e:
                 self.logger.error(f"Unexpected error retrying contract {contract_id}: {e}")
-                self.state_manager.mark_contract_month_error(service_name, environment_type, plan_id, 
-                                             contract_id, year, month, [str(e)], "RETRY_ERROR", 
-                                             str(e), payload)
+                self.state_manager.mark_contract_month_error(contract_id, year, month, 
+                                                             [str(e)], "RETRY_ERROR", 
+                                                             str(e), payload)
                 all_success = False
             
             if not success:
