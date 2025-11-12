@@ -65,6 +65,9 @@ class StateManager:
         
         # Initialize OmnistrateMeteringReader for reading usage data
         self.metering_reader = OmnistrateMeteringReader(config)
+
+        # Set maximum retries for error handling
+        self.max_retries = 5
         
         self.logger.info(f"StateManager initialized for s3://{self.aws_s3_bucket}/{self.file_path}")
     
@@ -222,7 +225,7 @@ class StateManager:
 
     def mark_contract_month_error(self, contract_id: str, year: int, month: int,
                                  errors: List[str], code: str = None, message: str = None,
-                                 payload: Dict = None, retry_count: int = 5):
+                                 payload: Dict = None):
         """
         Mark a specific contract for a month as having errors.
         
@@ -237,7 +240,6 @@ class StateManager:
             code: Error code
             message: Error message
             payload: The payload that failed to be sent
-            retry_count: Number of retries attempted
         """
         state = self.load_state()
         month_key = self.get_month_key(year, month)
@@ -264,14 +266,14 @@ class StateManager:
                 existing_error['message'] = message
             if payload:
                 existing_error['payload'] = payload
-            existing_error['retry_count'] = retry_count
+            existing_error['retry_count'] = existing_error.get('retry_count', 0) + 1
             existing_error['last_retry_time'] = datetime.now(timezone.utc).isoformat() + 'Z'
         else:
             # Create new error entry
             error_entry = {
                 "contract_id": contract_id,
                 "errors": errors,
-                "retry_count": retry_count,
+                "retry_count": 1,
                 "last_retry_time": datetime.now(timezone.utc).isoformat() + 'Z'
             }
             if code:
@@ -286,7 +288,7 @@ class StateManager:
         state['last_updated'] = datetime.now(timezone.utc).isoformat() + 'Z'
         self.save_state(state)
 
-    def get_error_contracts_for_retry(self, year: int, month: int, max_retries: int = 5) -> List[Dict]:
+    def get_error_contracts_for_retry(self, year: int, month: int) -> List[Dict]:
         """
         Get error contracts that can be retried for a specific month.
         
@@ -296,7 +298,6 @@ class StateManager:
             plan_id: Plan ID
             year: Year
             month: Month
-            max_retries: Maximum number of retry attempts
             
         Returns:
             List of error contract entries that can be retried
@@ -311,7 +312,7 @@ class StateManager:
         retry_contracts = []
         for error_entry in state['error_contracts'][month_key]:
             retry_count = error_entry.get('retry_count', 0)
-            if retry_count < max_retries:
+            if retry_count < self.max_retries:
                 retry_contracts.append(error_entry)
         
         return retry_contracts
@@ -348,15 +349,9 @@ class StateManager:
             state['last_updated'] = datetime.now(timezone.utc).isoformat() + 'Z'
             self.save_state(state)
 
-    def get_last_processed_month(self, service_name: str, environment_type: str, 
-                                plan_id: str) -> Optional[Tuple[int, int]]:
+    def get_last_processed_month(self) -> Optional[Tuple[int, int]]:
         """
         Get the last processed month for a specific service configuration.
-        
-        Args:
-            service_name: Name of the service
-            environment_type: Environment type
-            plan_id: Plan ID
             
         Returns:
             Tuple of (year, month) for last processed month, or None if never processed
