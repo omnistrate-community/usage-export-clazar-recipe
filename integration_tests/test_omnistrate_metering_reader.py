@@ -158,12 +158,12 @@ class TestOmnistrateMeteringReaderIntegration(unittest.TestCase):
                         f"Service state for '{service_key}' should be a dictionary"
                     )
                     
-                    # If lastSuccessfulExport exists, validate it's a timestamp string
-                    if 'lastSuccessfulExport' in service_state:
-                        last_export = service_state['lastSuccessfulExport']
+                    # If last_processed_to exists, validate it's a timestamp string
+                    if 'last_processed_to' in service_state:
+                        last_export = service_state['last_processed_to']
                         self.assertIsInstance(
                             last_export, str,
-                            f"lastSuccessfulExport for '{service_key}' should be a string"
+                            f"last_processed_to for '{service_key}' should be a string"
                         )
                         # Try parsing as ISO 8601 timestamp
                         try:
@@ -172,7 +172,7 @@ class TestOmnistrateMeteringReaderIntegration(unittest.TestCase):
                         except ValueError as e:
                             self.fail(f"Invalid timestamp format for '{service_key}': {last_export}")
                     else:
-                        logger.info(f"    ✓ Service '{service_key}': no lastSuccessfulExport yet")
+                        logger.info(f"    ✓ Service '{service_key}': no last_processed_to yet")
             else:
                 logger.info("  State is empty (file may not exist yet, which is valid)")
                 
