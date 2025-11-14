@@ -93,10 +93,10 @@ Optional: additional dimensions and formulas to export to Clazar
 
 **Example Usage:**
 
-- `DIMENSION1_NAME`: "pod_hours"
-- `DIMENSION1_FORMULA`: "cpu_core_hours / 2"
+- `DIMENSION1_NAME`: "cpu_core_hours"
+- `DIMENSION1_FORMULA`: "cpu_core_hours"
 
-This would create a custom dimension called "pod_hours" calculated as half of the CPU core hours (assuming 2-core machines).
+This would create a custom dimension called "cpu_core_hours" that simply passes through the value from the source data.
 
 **Available Variables in Formulas:**
 
@@ -104,6 +104,7 @@ This would create a custom dimension called "pod_hours" calculated as half of th
 - `storage_allocated_byte_hours`: Storage usage in byte-hours
 - `cpu_core_hours`: CPU core usage in core-hours
 - `replica_hours`: Replica usage in replica-hours
+- `pricePerUnit`: Price per unit for the dimension defined in Omnistrate
 
 **Formula Rules:**
 
@@ -117,7 +118,14 @@ This would create a custom dimension called "pod_hours" calculated as half of th
   - `DIMENSION1_NAME`: "total_compute_units"
   - `DIMENSION1_FORMULA`: "cpu_core_hours + memory_byte_hours / 1024 ** 3"
 
-**Note:** The dimension names should match your configured Clazar dimensions. Otherwise, Clazar will not recognize them. 
+**Note:** The dimension names should match your configured Clazar dimensions. Otherwise, Clazar will not recognize them.
+
+**Controlling Price from Omnistrate:**
+
+To make use of the Price Per Unit definition in Omnistrate, a way to configure the formula is to set the dimension price to a fixed value of 0.01 in the Marketplace and then define a formula as follows:
+
+- `DIMENSION1_NAME`: "marketplace_metric"
+- `DIMENSION1_FORMULA`: "replica_hours * pricePerUnit / 0.01"
 
 ## Job Behavior
 
