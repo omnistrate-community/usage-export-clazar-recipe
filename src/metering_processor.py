@@ -31,31 +31,49 @@ class MeteringProcessor:
             state_manager: StateManager instance for state persistence
             clazar_client: ClazarClient instance for API interactions
         """
+        if not config:
+            raise ValueError("Configuration object is required to initialize MeteringProcessor.")
+        if not config.service_name:
+            raise ValueError("Service name is not configured.")
+        if not config.environment_type:
+            raise ValueError("Environment type is not configured.")
+        if not config.plan_id:
+            raise ValueError("Plan ID is not configured.")  
+        if not metering_reader:
+            raise ValueError("OmnistrateMeteringReader object is required to initialize MeteringProcessor.")
+        if not state_manager:
+            raise ValueError("StateManager object is required to initialize MeteringProcessor.")
+        if not clazar_client:
+            raise ValueError("ClazarClient object is required to initialize MeteringProcessor.")
+        if not config.aws_s3_bucket:
+            raise ValueError("AWS S3 bucket name is not configured.")
+        if not config.clazar_cloud:
+            raise ValueError("Clazar cloud is not configured.")
+
         self.aws_s3_bucket = config.aws_s3_bucket
         self.state_manager = state_manager
         self.clazar_client = clazar_client
         self.clazar_cloud = config.clazar_cloud
         self.custom_dimensions = config.custom_dimensions or {}
         self.metering_reader = metering_reader
+        self.service_name = config.service_name
+        self.environment_type = config.environment_type
+        self.plan_id = config.plan_id
 
         self.logger = logging.getLogger(__name__)
 
-    def get_next_month_to_process(self, service_name: str, environment_type: str, 
-                                 plan_id: str, default_start_month: Optional[Tuple[int, int]] = None) -> Optional[Tuple[int, int]]:
+    def get_next_month_to_process(self, default_start_month: Optional[Tuple[int, int]] = None) -> Optional[Tuple[int, int]]:
         """
         Get the next month that needs to be processed.
         
         Args:
-            service_name: Name of the service
-            environment_type: Environment type
-            plan_id: Plan ID
             default_start_month: Optional default start month (as tuple of (year, month))
             
         Returns:
             Tuple of (year, month) for next month to process, or None if caught up
         """
-        last_processed = self.state_manager.get_last_processed_month(service_name, environment_type, plan_id)
-        latest_month_with_complete_usage_data = self.metering_reader.get_latest_month_with_complete_usage_data(service_name, environment_type, plan_id)
+        last_processed = self.state_manager.get_last_processed_month()
+        latest_month_with_complete_usage_data = self.metering_reader.get_latest_month_with_complete_usage_data()
         if latest_month_with_complete_usage_data is None:
             self.logger.error(f"Failed to retrieve latest month with complete usage data")
             return None
@@ -170,16 +188,12 @@ class MeteringProcessor:
         return transformed_data
 
     def filter_success_contracts(self, aggregated_data: Dict[Tuple[str, str], float],
-                                  service_name: str, environment_type: str, plan_id: str,
                                   year: int, month: int) -> Dict[Tuple[str, str], float]:
         """
         Filter out contracts that have already been processed for this month.
         
         Args:
             aggregated_data: Aggregated usage data
-            service_name: Name of the service
-            environment_type: Environment type
-            plan_id: Plan ID
             year: Year
             month: Month
             
@@ -189,8 +203,7 @@ class MeteringProcessor:
         filtered_data = {}
         
         for (contract_id, dimension), quantity in aggregated_data.items():
-            if not self.state_manager.is_contract_month_processed(service_name, environment_type, plan_id, 
-                                                   contract_id, year, month):
+            if not self.state_manager.is_contract_month_processed(contract_id, year, month):
                 filtered_data[(contract_id, dimension)] = quantity
             else:
                 self.logger.info(f"Skipping already processed contract {contract_id} for {year}-{month:02d}")
@@ -199,8 +212,7 @@ class MeteringProcessor:
         return filtered_data
 
     def send_to_clazar(self, aggregated_data: Dict[Tuple[str, str], float], 
-                      start_time: datetime, end_time: datetime,
-                      service_name: str, environment_type: str, plan_id: str) -> bool:
+                      start_time: datetime, end_time: datetime) -> bool:
         """
         Send aggregated usage data to Clazar and track processed contracts.
         Includes retry logic with exponential backoff for failed contracts.
@@ -209,9 +221,6 @@ class MeteringProcessor:
             aggregated_data: Aggregated usage data
             start_time: Start time for the metering period
             end_time: End time for the metering period
-            service_name: Name of the service
-            environment_type: Environment type
-            plan_id: Plan ID
             
         Returns:
             True if successful, False otherwise
@@ -266,9 +275,8 @@ class MeteringProcessor:
                 if has_errors:
                     self.logger.error(f"Failed to send data for contract {contract_id}: {error_code} - {error_message}")
                     self.logger.error(f"Errors: {errors}")
-                    self.state_manager.mark_contract_month_error(service_name, environment_type, plan_id, 
-                                                 contract_id, year, month, errors, error_code, 
-                                                 error_message, {"request": records})
+                    self.state_manager.mark_contract_month_error(contract_id, year, month, errors, error_code, 
+                                                                 error_message, {"request": records})
                     all_success = False
                 else:
                     # Success
@@ -276,25 +284,21 @@ class MeteringProcessor:
                     self.logger.info(f"Response: {response_data}")
                     
                     # Remove from error contracts if it was previously failed
-                    self.state_manager.remove_error_contract(service_name, environment_type, plan_id, 
-                                             contract_id, year, month)
+                    self.state_manager.remove_error_contract(contract_id, year, month)
                     
                     # Mark as successfully processed
-                    self.state_manager.mark_contract_month_processed(service_name, environment_type, plan_id, 
-                                                     contract_id, year, month)
+                    self.state_manager.mark_contract_month_processed(contract_id, year, month)
                     success = True
                     
             except ClazarAPIError as e:
                 self.logger.error(f"Clazar API error for contract {contract_id}: {e.message}")
-                self.state_manager.mark_contract_month_error(service_name, environment_type, plan_id, 
-                                             contract_id, year, month, [e.message], 
-                                             "API_ERROR", e.message, {"request": records})
+                self.state_manager.mark_contract_month_error(contract_id, year, month, [e.message], 
+                                                            "API_ERROR", e.message, {"request": records})
                 all_success = False
                 
             except Exception as e:
                 self.logger.error(f"Unexpected error for contract {contract_id}: {e}")
-                self.state_manager.mark_contract_month_error(service_name, environment_type, plan_id, 
-                                             contract_id, year, month, [str(e)], 
+                self.state_manager.mark_contract_month_error(contract_id, year, month, [str(e)], 
                                              "UNEXPECTED_ERROR", str(e), {"request": records})
                 all_success = False
             
@@ -303,24 +307,18 @@ class MeteringProcessor:
         
         return all_success
 
-    def retry_error_contracts(self, service_name: str, environment_type: str, 
-                             plan_id: str, year: int, month: int) -> bool:
+    def retry_error_contracts(self, year: int, month: int) -> bool:
         """
         Retry sending failed contracts for a specific month.
         
         Args:
-            service_name: Name of the service
-            environment_type: Environment type
-            plan_id: Plan ID
             year: Year
             month: Month
-            max_retries: Maximum retry attempts
             
         Returns:
             True if all retries were successful, False otherwise
         """
-        error_contracts = self.state_manager.get_error_contracts_for_retry(service_name, environment_type, 
-                                                           plan_id, year, month)
+        error_contracts = self.state_manager.get_error_contracts_for_retry(year, month)
         
         if not error_contracts:
             self.logger.info(f"No error contracts to retry for {year}-{month:02d}")
@@ -360,7 +358,7 @@ class MeteringProcessor:
                     self.logger.error(f"Errors: {errors}")
                     
                     # Update error entry with new retry count
-                    self.state_manager.mark_contract_month_error(service_name, environment_type, plan_id, 
+                    self.state_manager.mark_contract_month_error(
                                                  contract_id, year, month, errors, error_code, 
                                                  error_message, payload,)
                     all_success = False
@@ -369,24 +367,22 @@ class MeteringProcessor:
                     self.logger.info(f"Successfully retried contract {contract_id}")
                     self.logger.info(f"Response: {response_data}")
                     
-                    self.state_manager.remove_error_contract(service_name, environment_type, plan_id, 
-                                             contract_id, year, month)
-                    self.state_manager.mark_contract_month_processed(service_name, environment_type, plan_id, 
-                                                     contract_id, year, month)
+                    self.state_manager.remove_error_contract(contract_id, year, month)
+                    self.state_manager.mark_contract_month_processed(contract_id, year, month)
                     success = True
                     
             except ClazarAPIError as e:
                 self.logger.error(f"Clazar API error retrying contract {contract_id}: {e.message}")
-                self.state_manager.mark_contract_month_error(service_name, environment_type, plan_id, 
-                                             contract_id, year, month, [e.message], "RETRY_ERROR", 
-                                             e.message, payload)
+                self.state_manager.mark_contract_month_error(contract_id, year, month, 
+                                                             [e.message], "RETRY_ERROR", 
+                                                             e.message, payload)
                 all_success = False
                 
             except Exception as e:
                 self.logger.error(f"Unexpected error retrying contract {contract_id}: {e}")
-                self.state_manager.mark_contract_month_error(service_name, environment_type, plan_id, 
-                                             contract_id, year, month, [str(e)], "RETRY_ERROR", 
-                                             str(e), payload)
+                self.state_manager.mark_contract_month_error(contract_id, year, month, 
+                                                             [str(e)], "RETRY_ERROR", 
+                                                             str(e), payload)
                 all_success = False
             
             if not success:
@@ -394,15 +390,11 @@ class MeteringProcessor:
         
         return all_success
 
-    def process_month(self, service_name: str, environment_type: str, 
-                     plan_id: str, year: int, month: int) -> bool:
+    def process_month(self, year: int, month: int) -> bool:
         """
         Process usage data for a specific month.
         
         Args:
-            service_name: Name of the service
-            environment_type: Environment type
-            plan_id: Plan ID
             year: Year to process
             month: Month to process
             max_retries: Maximum retry attempts for failed contracts
@@ -410,13 +402,13 @@ class MeteringProcessor:
         Returns:
             True if successful, False otherwise
         """
-        self.logger.info(f"Processing month: {year}-{month:02d} for {service_name}/{environment_type}/{plan_id}")
+        self.logger.info(f"Processing month: {year}-{month:02d} for {self.service_name}/{self.environment_type}/{self.plan_id}")
         
         # First, retry any existing error contracts
-        retry_success = self.retry_error_contracts(service_name, environment_type, plan_id, year, month)
+        retry_success = self.retry_error_contracts(year, month)
         
         # List all subscription files for the month
-        subscription_files = self.metering_reader.list_monthly_subscription_files(service_name, environment_type, plan_id, year, month)
+        subscription_files = self.metering_reader.list_monthly_subscription_files(year, month)
         
         if not subscription_files:
             self.logger.info(f"No subscription files found for {year}-{month:02d}")
@@ -426,7 +418,7 @@ class MeteringProcessor:
         # Read and aggregate all usage data
         all_usage_records = []
         for file_key in subscription_files:
-            usage_records = self.read_s3_json_file(file_key)
+            usage_records = self.metering_reader.read_s3_json_file(file_key)
             all_usage_records.extend(usage_records)
         
         if not all_usage_records:
@@ -445,8 +437,7 @@ class MeteringProcessor:
                 return False
         
         # Filter out already processed contracts
-        filtered_data = self.filter_success_contracts(aggregated_data, service_name, 
-                                                       environment_type, plan_id, year, month)
+        filtered_data = self.filter_success_contracts(aggregated_data, year, month)
         
         if not filtered_data:
             self.logger.info(f"All contracts for {year}-{month:02d} have already been processed")
@@ -460,30 +451,24 @@ class MeteringProcessor:
         end_time = datetime(year, month, last_day, 23, 59, 59)
         
         # Send to Clazar
-        send_success = self.send_to_clazar(filtered_data, start_time, end_time, 
-                                         service_name, environment_type, plan_id)
+        send_success = self.send_to_clazar(filtered_data, start_time, end_time)
         
         # Return True only if both retry and send operations were successful
         return retry_success and send_success
 
-    def process_next_month(self, service_name: str, environment_type: str, 
-                          plan_id: str, start_month: tuple = (2025, 1)) -> bool:
+    def process_next_month(self, start_month: tuple = (2025, 1)) -> bool:
         """
         Process the next pending month for a specific service configuration.
         
         Args:
-            service_name: Name of the service
-            environment_type: Environment type
-            plan_id: Plan ID
             start_month: Default start month if no previous processing history
             
         Returns:
             True if processing was successful, False otherwise
         """
-        self.logger.info(f"Starting processing for {service_name}/{environment_type}/{plan_id}")
+        self.logger.info(f"Starting processing for {self.service_name}/{self.environment_type}/{self.plan_id}")
         
-        next_month = self.get_next_month_to_process(service_name, environment_type, plan_id, 
-                                                    default_start_month=start_month)
+        next_month = self.get_next_month_to_process(default_start_month=start_month)
         
         if next_month is None:
             self.logger.info("No more months to process, caught up!")
@@ -492,75 +477,22 @@ class MeteringProcessor:
         year, month = next_month
         self.logger.info(f"Processing month: {year}-{month:02d}")
         
-        success = self.process_month(service_name, environment_type, plan_id, year, month)
+        success = self.process_month(year, month)
         
         if success:
             # Update state only if processing was successful
-            self.state_manager.update_last_processed_month(service_name, environment_type, plan_id, year, month)
+            self.state_manager.update_last_processed_month(year, month)
             self.logger.info(f"Successfully processed month {year}-{month:02d}")
         else:
             self.logger.error(f"Failed to process month {year}-{month:02d}")
         
         return success
 
-def main_processing():
-    """Main processing function to run the metering processor."""
-
-    # Load and validate configuration
+def main_processing(processor : MeteringProcessor, default_start_year: int, default_start_month: int) -> bool:
+    """Main processing function to run the metering processor."""       
     try:
-        config = Config()
-        config.setup_logging()
-        config.validate_all()
-        config.print_summary()
-    except ConfigurationError as e:
-        logging.error(f"Error: {e}")
-        sys.exit(1)
-
-        
-    try:
-        # Initialize Omnistrate metering reader
-        logging.info("Initializing Omnistrate metering reader...")
-        metering_reader = OmnistrateMeteringReader(config)
-        logging.info("Omnistrate metering reader initialized successfully")
-        try :
-            metering_reader.validate_access()
-            logging.info("Omnistrate metering reader validated successfully")
-        except Exception as e:
-            logging.error(f"Error validating Omnistrate metering reader: {e}")
-            sys.exit(1)
-
-        # Initialize StateManager and validate access
-        logging.info("Initializing state manager...")
-        state_manager = StateManager(config)
-        try:
-            state_manager.validate_access()
-            logging.info("State manager validated successfully")
-        except StateManagerError as e:
-            logging.error(f"Error validating state manager: {e}")
-            sys.exit(1)
-        
-        # Initialize Clazar client and authenticate
-        clazar_client = ClazarClient(config)
-        try:
-            clazar_client.authenticate()
-            logging.info("Clazar client authenticated successfully")
-        except ClazarAPIError as e:
-            logging.error(f"Error authenticating with Clazar: {e.message}")
-            sys.exit(1)
-
-        # Initialize the processor
-        processor = MeteringProcessor(
-            config=config,
-            state_manager=state_manager,
-            clazar_client=clazar_client,
-        )
-        
-        # Process next month
-        start_year, start_month = config.validate_start_month()
-
         success = processor.process_next_month(
-            config.service_name, config.environment_type, config.plan_id, 
-             (start_year, start_month)
+             (default_start_year, default_start_month)
         )
         
         if success:
@@ -590,9 +522,60 @@ def main_processing():
 def main():
     """Main function to run the metering processor in a continuous loop."""
     import time
+
+    # Load and validate configuration
+    try:
+        config = Config()
+        config.setup_logging()
+        config.validate_all()
+        config.print_summary()
+    except ConfigurationError as e:
+        logging.error(f"Error: {e}")
+        sys.exit(1)
+
+    # Initialize Omnistrate metering reader
+    logging.info("Initializing Omnistrate metering reader...")
+    metering_reader = OmnistrateMeteringReader(config)
+    logging.info("Omnistrate metering reader initialized successfully")
+    try :
+        metering_reader.validate_access()
+        logging.info("Omnistrate metering reader validated successfully")
+    except Exception as e:
+        logging.error(f"Error validating Omnistrate metering reader: {e}")
+        sys.exit(1)
+
+    # Initialize StateManager and validate access
+    logging.info("Initializing state manager...")
+    state_manager = StateManager(config)
+    try:
+        state_manager.validate_access()
+        logging.info("State manager validated successfully")
+    except StateManagerError as e:
+        logging.error(f"Error validating state manager: {e}")
+        sys.exit(1)
+    
+    # Initialize Clazar client and authenticate
+    clazar_client = ClazarClient(config)
+    try:
+        clazar_client.authenticate()
+        logging.info("Clazar client authenticated successfully")
+    except ClazarAPIError as e:
+        logging.error(f"Error authenticating with Clazar: {e.message}")
+        sys.exit(1)
+
+    # Initialize the processor
+    processor = MeteringProcessor(
+        config=config,
+        metering_reader=metering_reader,
+        state_manager=state_manager,
+        clazar_client=clazar_client,
+    )
     
     # Run once initially
     logging.info("Starting metering processor in continuous mode (5-minute interval)")
+
+    # Process next month
+    default_start_year, default_start_month = config.validate_start_month()
     
     while True:
         try:
@@ -600,7 +583,7 @@ def main():
             logging.info("Starting processing cycle at %s", time.strftime('%Y-%m-%d %H:%M:%S'))
             logging.info("=" * 80)
             
-            success = main_processing()
+            success = main_processing(processor, default_start_year, default_start_month)
             
             if success:
                 logging.info("Processing cycle completed successfully")

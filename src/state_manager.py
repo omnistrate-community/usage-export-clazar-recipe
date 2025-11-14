@@ -65,6 +65,9 @@ class StateManager:
         
         # Initialize OmnistrateMeteringReader for reading usage data
         self.metering_reader = OmnistrateMeteringReader(config)
+
+        # Set maximum retries for error handling
+        self.max_retries = 5
         
         self.logger.info(f"StateManager initialized for s3://{self.aws_s3_bucket}/{self.file_path}")
     
@@ -146,20 +149,6 @@ class StateManager:
             self.logger.error(f"Error saving state file to S3: {e}")
             raise
 
-    def get_service_key(self, service_name: str, environment_type: str, plan_id: str) -> str:
-        """
-        Generate a unique key for a service configuration.
-        
-        Args:
-            service_name: Name of the service
-            environment_type: Environment type
-            plan_id: Plan ID
-            
-        Returns:
-            Unique service key
-        """
-        return f"{service_name}:{environment_type}:{plan_id}"
-
     def get_month_key(self, year: int, month: int) -> str:
         """
         Generate a unique key for a month.
@@ -173,15 +162,11 @@ class StateManager:
         """
         return f"{year:04d}-{month:02d}"
 
-    def is_contract_month_processed(self, service_name: str, environment_type: str, 
-                                   plan_id: str, contract_id: str, year: int, month: int) -> bool:
+    def is_contract_month_processed(self, contract_id: str, year: int, month: int) -> bool:
         """
         Check if a specific contract for a month has been processed (either successfully or with errors).
         
         Args:
-            service_name: Name of the service
-            environment_type: Environment type
-            plan_id: Plan ID
             contract_id: Contract ID (external payer ID)
             year: Year
             month: Month
@@ -190,70 +175,54 @@ class StateManager:
             True if contract-month has been processed (successfully or with errors), False otherwise
         """
         state = self.load_state()
-        service_key = self.get_service_key(service_name, environment_type, plan_id)
         month_key = self.get_month_key(year, month)
         
-        if service_key not in state:
-            return False
-        
         # Check if in processed contracts (successful)
-        if 'success_contracts' in state[service_key]:
-            if month_key in state[service_key]['success_contracts']:
-                if contract_id in state[service_key]['success_contracts'][month_key]:
+        if 'success_contracts' in state:
+            if month_key in state['success_contracts']:
+                if contract_id in state['success_contracts'][month_key]:
                     return True
         
         # Check if in error contracts (failed but recorded)
-        if 'error_contracts' in state[service_key]:
-            if month_key in state[service_key]['error_contracts']:
-                for error_entry in state[service_key]['error_contracts'][month_key]:
+        if 'error_contracts' in state:
+            if month_key in state['error_contracts']:
+                for error_entry in state['error_contracts'][month_key]:
                     if error_entry.get('contract_id') == contract_id:
                         return True
         
         return False
 
-    def mark_contract_month_processed(self, service_name: str, environment_type: str, 
-                                     plan_id: str, contract_id: str, year: int, month: int):
+    def mark_contract_month_processed(self, contract_id: str, year: int, month: int):
         """
         Mark a specific contract for a month as processed (successfully).
         
         Args:
-            service_name: Name of the service
-            environment_type: Environment type
-            plan_id: Plan ID
             contract_id: Contract ID (external payer ID)
             year: Year
             month: Month
         """
         state = self.load_state()
-        service_key = self.get_service_key(service_name, environment_type, plan_id)
         month_key = self.get_month_key(year, month)
         
-        if service_key not in state:
-            state[service_key] = {}
+        if 'success_contracts' not in state:
+            state['success_contracts'] = {}
         
-        if 'success_contracts' not in state[service_key]:
-            state[service_key]['success_contracts'] = {}
+        if month_key not in state['success_contracts']:
+            state['success_contracts'][month_key] = []
         
-        if month_key not in state[service_key]['success_contracts']:
-            state[service_key]['success_contracts'][month_key] = []
+        if contract_id not in state['success_contracts'][month_key]:
+            state['success_contracts'][month_key].append(contract_id)
         
-        if contract_id not in state[service_key]['success_contracts'][month_key]:
-            state[service_key]['success_contracts'][month_key].append(contract_id)
-        
-        state[service_key]['last_updated'] = datetime.now(timezone.utc).isoformat() + 'Z'
+        state['last_updated'] = datetime.now(timezone.utc).isoformat() + 'Z'
         self.save_state(state)
 
-    def mark_contract_month_error(self, service_name: str, environment_type: str, 
-                                 plan_id: str, contract_id: str, year: int, month: int,
+    def mark_contract_month_error(self, contract_id: str, year: int, month: int,
                                  errors: List[str], code: str = None, message: str = None,
-                                 payload: Dict = None, retry_count: int = 5):
+                                 payload: Dict = None):
         """
         Mark a specific contract for a month as having errors.
         
         Args:
-            service_name: Name of the service
-            environment_type: Environment type
-            plan_id: Plan ID
             contract_id: Contract ID (external payer ID)
             year: Year
             month: Month
@@ -261,24 +230,19 @@ class StateManager:
             code: Error code
             message: Error message
             payload: The payload that failed to be sent
-            retry_count: Number of retries attempted
         """
         state = self.load_state()
-        service_key = self.get_service_key(service_name, environment_type, plan_id)
         month_key = self.get_month_key(year, month)
+    
+        if 'error_contracts' not in state:
+            state['error_contracts'] = {}
         
-        if service_key not in state:
-            state[service_key] = {}
-        
-        if 'error_contracts' not in state[service_key]:
-            state[service_key]['error_contracts'] = {}
-        
-        if month_key not in state[service_key]['error_contracts']:
-            state[service_key]['error_contracts'][month_key] = []
+        if month_key not in state['error_contracts']:
+            state['error_contracts'][month_key] = []
         
         # Check if this contract already has an error entry for this month
         existing_error = None
-        for error_entry in state[service_key]['error_contracts'][month_key]:
+        for error_entry in state['error_contracts'][month_key]:
             if error_entry.get('contract_id') == contract_id:
                 existing_error = error_entry
                 break
@@ -292,14 +256,14 @@ class StateManager:
                 existing_error['message'] = message
             if payload:
                 existing_error['payload'] = payload
-            existing_error['retry_count'] = retry_count
+            existing_error['retry_count'] = existing_error.get('retry_count', 0) + 1
             existing_error['last_retry_time'] = datetime.now(timezone.utc).isoformat() + 'Z'
         else:
             # Create new error entry
             error_entry = {
                 "contract_id": contract_id,
                 "errors": errors,
-                "retry_count": retry_count,
+                "retry_count": 1,
                 "last_retry_time": datetime.now(timezone.utc).isoformat() + 'Z'
             }
             if code:
@@ -309,13 +273,12 @@ class StateManager:
             if payload:
                 error_entry["payload"] = payload
             
-            state[service_key]['error_contracts'][month_key].append(error_entry)
+            state['error_contracts'][month_key].append(error_entry)
         
-        state[service_key]['last_updated'] = datetime.now(timezone.utc).isoformat() + 'Z'
+        state['last_updated'] = datetime.now(timezone.utc).isoformat() + 'Z'
         self.save_state(state)
 
-    def get_error_contracts_for_retry(self, service_name: str, environment_type: str, 
-                                     plan_id: str, year: int, month: int, max_retries: int = 5) -> List[Dict]:
+    def get_error_contracts_for_retry(self, year: int, month: int) -> List[Dict]:
         """
         Get error contracts that can be retried for a specific month.
         
@@ -325,83 +288,64 @@ class StateManager:
             plan_id: Plan ID
             year: Year
             month: Month
-            max_retries: Maximum number of retry attempts
             
         Returns:
             List of error contract entries that can be retried
         """
         state = self.load_state()
-        service_key = self.get_service_key(service_name, environment_type, plan_id)
         month_key = self.get_month_key(year, month)
         
-        if (service_key not in state or 
-            'error_contracts' not in state[service_key] or 
-            month_key not in state[service_key]['error_contracts']):
+        if ('error_contracts' not in state or 
+            month_key not in state['error_contracts']):
             return []
         
         retry_contracts = []
-        for error_entry in state[service_key]['error_contracts'][month_key]:
+        for error_entry in state['error_contracts'][month_key]:
             retry_count = error_entry.get('retry_count', 0)
-            if retry_count < max_retries:
+            if retry_count < self.max_retries:
                 retry_contracts.append(error_entry)
         
         return retry_contracts
 
-    def remove_error_contract(self, service_name: str, environment_type: str, 
-                             plan_id: str, contract_id: str, year: int, month: int):
+    def remove_error_contract(self, contract_id: str, year: int, month: int):
         """
         Remove a contract from error contracts (when it succeeds on retry).
         
         Args:
-            service_name: Name of the service
-            environment_type: Environment type
-            plan_id: Plan ID
             contract_id: Contract ID
             year: Year
             month: Month
         """
         state = self.load_state()
-        service_key = self.get_service_key(service_name, environment_type, plan_id)
         month_key = self.get_month_key(year, month)
         
-        if (service_key in state and 
-            'error_contracts' in state[service_key] and 
-            month_key in state[service_key]['error_contracts']):
+        if ('error_contracts' in state and 
+            month_key in state['error_contracts']):
             
             # Remove the error entry for this contract
-            state[service_key]['error_contracts'][month_key] = [
-                entry for entry in state[service_key]['error_contracts'][month_key]
+            state['error_contracts'][month_key] = [
+                entry for entry in state['error_contracts'][month_key]
                 if entry.get('contract_id') != contract_id
             ]
             
             # Clean up empty month entry
-            if not state[service_key]['error_contracts'][month_key]:
-                del state[service_key]['error_contracts'][month_key]
+            if not state['error_contracts'][month_key]:
+                del state['error_contracts'][month_key]
             
-            state[service_key]['last_updated'] = datetime.now(timezone.utc).isoformat() + 'Z'
+            state['last_updated'] = datetime.now(timezone.utc).isoformat() + 'Z'
             self.save_state(state)
 
-    def get_last_processed_month(self, service_name: str, environment_type: str, 
-                                plan_id: str) -> Optional[Tuple[int, int]]:
+    def get_last_processed_month(self) -> Optional[Tuple[int, int]]:
         """
         Get the last processed month for a specific service configuration.
-        
-        Args:
-            service_name: Name of the service
-            environment_type: Environment type
-            plan_id: Plan ID
             
         Returns:
             Tuple of (year, month) for last processed month, or None if never processed
         """
         state = self.load_state()
-        service_key = self.get_service_key(service_name, environment_type, plan_id)
-        
-        if service_key not in state:
-            return None
         
         try:
-            last_processed_str = state[service_key].get('last_processed_month')
+            last_processed_str = state.get('last_processed_month')
             if not last_processed_str:
                 return None
             
@@ -409,29 +353,21 @@ class StateManager:
             year, month = map(int, last_processed_str.split('-'))
             return (year, month)
         except (KeyError, ValueError) as e:
-            self.logger.error(f"Error parsing last processed month for {service_key}: {e}")
+            self.logger.error(f"Error parsing last processed month for state in {self.file_path}: {e}")
             return None
 
-    def update_last_processed_month(self, service_name: str, environment_type: str, 
-                                   plan_id: str, year: int, month: int):
+    def update_last_processed_month(self, year: int, month: int):
         """
         Update the last processed month for a specific service configuration.
         
         Args:
-            service_name: Name of the service
-            environment_type: Environment type
-            plan_id: Plan ID
             year: Year of the month that was processed
             month: Month that was processed
         """
         state = self.load_state()
-        service_key = self.get_service_key(service_name, environment_type, plan_id)
-        
-        if service_key not in state:
-            state[service_key] = {}
         
         month_key = self.get_month_key(year, month)
-        state[service_key]['last_processed_month'] = month_key
-        state[service_key]['last_updated'] = datetime.now(timezone.utc).isoformat() + 'Z'
+        state['last_processed_month'] = month_key
+        state['last_updated'] = datetime.now(timezone.utc).isoformat() + 'Z'
 
         self.save_state(state)
