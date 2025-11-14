@@ -140,6 +140,10 @@ class OmnistrateMeteringReader:
         
         try:
             last_processed_str = state[service_key].get('last_processed_to')
+            
+            if not last_processed_str:
+                self.logger.info(f"No last_processed_to found for service key: {service_key}")
+                return None
 
             # Parse ISO 8601 timestamp (e.g., "2025-01-31T23:59:59Z")
             # We need to extract year and month from this
