@@ -96,7 +96,7 @@ Optional: additional dimensions and formulas to export to Clazar
 - `DIMENSION1_NAME`: "cpu_core_hours"
 - `DIMENSION1_FORMULA`: "cpu_core_hours"
 
-This would create a custom dimension called "pod_hours" calculated as half of the CPU core hours (assuming 2-core machines).
+This would create a custom dimension called "cpu_core_hours" that simply passes through the value from the source data.
 
 **Available Variables in Formulas:**
 
