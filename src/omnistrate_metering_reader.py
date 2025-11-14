@@ -104,7 +104,7 @@ class OmnistrateMeteringReader:
             )
             content = response['Body'].read().decode('utf-8')
             state = json.loads(content)
-            self.logger.debug(
+            self.logger.info(
                 f"Loaded usage data state from S3: s3://{self.aws_s3_bucket}/omnistrate-metering/last_success_export.json"
             )
             return state
@@ -129,16 +129,19 @@ class OmnistrateMeteringReader:
         state = self.load_usage_data_state()
     
         if not state:
+            self.logger.info("No usage data state available.")
             return None
 
         service_key = self.get_service_key()
         
         if service_key not in state:
+            self.logger.info(f"No usage data state found for service key: {service_key}")
             return None
         
         try:
-            last_processed_str = state[service_key].get('lastSuccessfulExport')
+            last_processed_str = state[service_key].get('last_processed_to')
             if not last_processed_str:
+                self.logger.info(f"No last_processed_to found for service key: {service_key}")
                 return None
 
             # Parse ISO 8601 timestamp (e.g., "2025-01-31T23:59:59Z")
@@ -148,7 +151,7 @@ class OmnistrateMeteringReader:
             # Return the year and month of the last successful export
             return (dt.year, dt.month)
         except (KeyError, ValueError) as e:
-            self.logger.error(f"Error parsing last successful export for {service_key}: {e}")
+            self.logger.error(f"Error parsing last_processed_to for {service_key}: {e}")
             return None
     
     def get_monthly_s3_prefix(self, year: int, month: int) -> str:
