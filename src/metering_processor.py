@@ -114,8 +114,11 @@ class MeteringProcessor:
             dimension = record.get('dimension')
             value = record.get('value', 0)
             
-            if not external_payer_id or not dimension:
-                self.logger.warning(f"Skipping record with missing data: {record}")
+            if not external_payer_id:
+                self.logger.warning(f"Skipping record with missing data: no external payer ID, timestamp {record.get('timestamp')}")
+                continue
+            if not dimension:
+                self.logger.warning(f"Skipping record with missing data: no dimension, timestamp {record.get('timestamp')}, externalPayerId {external_payer_id}")
                 continue
             
             key = (external_payer_id, dimension)
@@ -155,6 +158,7 @@ class MeteringProcessor:
                         'storage_allocated_byte_hours': dimensions.get('storage_allocated_byte_hours', 0),
                         'cpu_core_hours': dimensions.get('cpu_core_hours', 0),
                         'replica_hours': dimensions.get('replica_hours', 0),
+                        "pricePerUnit": dimensions.get("pricePerUnit", 0),
                         # Add mathematical functions for safety
                         '__builtins__': {
                             'abs': abs, 'min': min, 'max': max, 'round': round,
@@ -321,7 +325,7 @@ class MeteringProcessor:
         error_contracts = self.state_manager.get_error_contracts_for_retry(year, month)
         
         if not error_contracts:
-            self.logger.info(f"No error contracts to retry for {year}-{month:02d}")
+            self.logger.info(f"No previously submitted contracts with error to retry for {year}-{month:02d}")
             return True
         
         self.logger.info(f"Retrying {len(error_contracts)} error contracts for {year}-{month:02d}")
@@ -433,7 +437,7 @@ class MeteringProcessor:
         if self.custom_dimensions:
             aggregated_data = self.transform_dimensions(aggregated_data)
             if not aggregated_data:
-                self.logger.error(f"All dimension transformations failed for {year}-{month:02d}. Skipping this month.")
+                self.logger.error(f"No data transformations succeeded for {year}-{month:02d}. Skipping this month.")
                 return False
         
         # Filter out already processed contracts

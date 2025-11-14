@@ -220,6 +220,178 @@ class TestMeteringProcessor(unittest.TestCase):
         # Should return empty dict when formula fails
         self.assertEqual(result, {})
 
+    def test_transform_dimensions_with_price_per_unit_formula(self):
+        """Test transform dimensions with cpu_core_hours * pricePerUnit / 0.05 formula."""
+        # Create processor with custom dimension using price per unit
+        os.environ['DIMENSION1_NAME'] = 'cost_dimension'
+        os.environ['DIMENSION1_FORMULA'] = 'cpu_core_hours * pricePerUnit / 0.05'
+        config = Config()
+        processor = MeteringProcessor(
+            config=config,
+            metering_reader=self.mock_metering_reader,
+            state_manager=self.mock_state_manager,
+            clazar_client=self.mock_clazar_client
+        )
+        
+        aggregated_data = {
+            ('contract-1', 'cpu_core_hours'): 10000,
+            ('contract-1', 'pricePerUnit'): 50,
+            ('contract-2', 'cpu_core_hours'): 20000,
+            ('contract-2', 'pricePerUnit'): 100,
+        }
+        
+        result = processor.transform_dimensions(aggregated_data)
+        
+        # contract-1: 10000 * 50 / 0.05 = 10000000.0
+        # contract-2: 20000 * 100 / 0.05 = 40000000.0
+        expected = {
+            ('contract-1', 'cost_dimension'): 10000000.0,
+            ('contract-2', 'cost_dimension'): 40000000.0,
+        }
+        self.assertEqual(result, expected)
+        
+        # Clean up environment variable
+        del os.environ['DIMENSION1_NAME']
+        del os.environ['DIMENSION1_FORMULA']
+
+    def test_transform_dimensions_with_real_world_usage_data(self):
+        """Test transform dimensions with real-world usage data from Omnistrate."""
+        # Create processor with custom dimension using price per unit formula
+        os.environ['DIMENSION1_NAME'] = 'cost_dimension'
+        os.environ['DIMENSION1_FORMULA'] = 'cpu_core_hours * pricePerUnit / 0.05'
+        config = Config()
+        processor = MeteringProcessor(
+            config=config,
+            metering_reader=self.mock_metering_reader,
+            state_manager=self.mock_state_manager,
+            clazar_client=self.mock_clazar_client
+        )
+        
+        # Real-world usage records from Omnistrate
+        usage_records = [
+            {
+                "timestamp": "2025-11-14T03:01:59Z",
+                "organizationId": "org-ng3178atx4",
+                "organizationName": "Omnistrate",
+                "customerId": "user-wqo8MXGOWw",
+                "customerEmail": "xzhang+billing+canary+org-mm1ll2x0oy@omnistrate.com",
+                "subscriptionId": "sub-3YH5N1M4zz",
+                "externalPayerId": "ae641bd1-edf8-4038-bfed-d2ff556c729e",
+                "serviceId": "s-P6UJ5XUunY",
+                "serviceName": "pg",
+                "serviceEnvironmentId": "se-6dkTBqXrUu",
+                "serviceEnvironmentType": "PROD",
+                "productTierId": "pt-HJSv20iWX0",
+                "productTierName": "pg",
+                "hostClusterId": "hc-pelsk80ph",
+                "instanceId": "instance-8qtgw2dx7",
+                "podName": "postgres-0",
+                "instanceType": "t4g.small",
+                "hostName": "ip-172-0-63-226.us-east-2.compute.internal",
+                "dimension": "storage_allocated_byte_hours",
+                "value": 10737418240,
+                "pricePerUnit": 0.05
+            },
+            {
+                "timestamp": "2025-11-14T03:01:59Z",
+                "organizationId": "org-ng3178atx4",
+                "organizationName": "Omnistrate",
+                "customerId": "user-wqo8MXGOWw",
+                "customerEmail": "xzhang+billing+canary+org-mm1ll2x0oy@omnistrate.com",
+                "subscriptionId": "sub-3YH5N1M4zz",
+                "externalPayerId": "ae641bd1-edf8-4038-bfed-d2ff556c729e",
+                "serviceId": "s-P6UJ5XUunY",
+                "serviceName": "pg",
+                "serviceEnvironmentId": "se-6dkTBqXrUu",
+                "serviceEnvironmentType": "PROD",
+                "productTierId": "pt-HJSv20iWX0",
+                "productTierName": "pg",
+                "hostClusterId": "hc-pelsk80ph",
+                "instanceId": "instance-8qtgw2dx7",
+                "podName": "postgres-0",
+                "instanceType": "t4g.small",
+                "hostName": "ip-172-0-63-226.us-east-2.compute.internal",
+                "dimension": "memory_byte_hours",
+                "value": 2147483648,
+                "pricePerUnit": 0.1
+            },
+            {
+                "timestamp": "2025-11-14T03:01:59Z",
+                "organizationId": "org-ng3178atx4",
+                "organizationName": "Omnistrate",
+                "customerId": "user-wqo8MXGOWw",
+                "customerEmail": "xzhang+billing+canary+org-mm1ll2x0oy@omnistrate.com",
+                "subscriptionId": "sub-3YH5N1M4zz",
+                "externalPayerId": "ae641bd1-edf8-4038-bfed-d2ff556c729e",
+                "serviceId": "s-P6UJ5XUunY",
+                "serviceName": "pg",
+                "serviceEnvironmentId": "se-6dkTBqXrUu",
+                "serviceEnvironmentType": "PROD",
+                "productTierId": "pt-HJSv20iWX0",
+                "productTierName": "pg",
+                "hostClusterId": "hc-pelsk80ph",
+                "instanceId": "instance-8qtgw2dx7",
+                "podName": "postgres-0",
+                "instanceType": "t4g.small",
+                "hostName": "ip-172-0-63-226.us-east-2.compute.internal",
+                "dimension": "cpu_core_hours",
+                "value": 2,
+                "pricePerUnit": 0.2
+            },
+            {
+                "timestamp": "2025-11-14T03:01:59Z",
+                "organizationId": "org-ng3178atx4",
+                "organizationName": "Omnistrate",
+                "customerId": "user-wqo8MXGOWw",
+                "customerEmail": "xzhang+billing+canary+org-mm1ll2x0oy@omnistrate.com",
+                "subscriptionId": "sub-3YH5N1M4zz",
+                "externalPayerId": "ae641bd1-edf8-4038-bfed-d2ff556c729e",
+                "serviceId": "s-P6UJ5XUunY",
+                "serviceName": "pg",
+                "serviceEnvironmentId": "se-6dkTBqXrUu",
+                "serviceEnvironmentType": "PROD",
+                "productTierId": "pt-HJSv20iWX0",
+                "productTierName": "pg",
+                "hostClusterId": "hc-pelsk80ph",
+                "instanceId": "instance-8qtgw2dx7",
+                "podName": "postgres-0",
+                "instanceType": "t4g.small",
+                "hostName": "ip-172-0-63-226.us-east-2.compute.internal",
+                "dimension": "replica_hours",
+                "value": 1
+            }
+        ]
+        
+        # First aggregate the usage data
+        aggregated_data = processor.aggregate_usage_data(usage_records)
+        
+        # Verify aggregation worked correctly - pricePerUnit is not aggregated by dimension
+        expected_aggregated = {
+            ('ae641bd1-edf8-4038-bfed-d2ff556c729e', 'storage_allocated_byte_hours'): 10737418240,
+            ('ae641bd1-edf8-4038-bfed-d2ff556c729e', 'memory_byte_hours'): 2147483648,
+            ('ae641bd1-edf8-4038-bfed-d2ff556c729e', 'cpu_core_hours'): 2,
+            ('ae641bd1-edf8-4038-bfed-d2ff556c729e', 'replica_hours'): 1,
+        }
+        self.assertEqual(aggregated_data, expected_aggregated)
+        
+        # For the transform to work, we need to add pricePerUnit as a dimension
+        # This simulates the case where pricePerUnit is also exported as a dimension
+        aggregated_data[('ae641bd1-edf8-4038-bfed-d2ff556c729e', 'pricePerUnit')] = 0.2
+        
+        # Transform dimensions using the formula
+        result = processor.transform_dimensions(aggregated_data)
+        
+        # Expected calculation: cpu_core_hours * pricePerUnit / 0.05
+        # = 2 * 0.2 / 0.05 = 0.4 / 0.05 = 8.0
+        expected = {
+            ('ae641bd1-edf8-4038-bfed-d2ff556c729e', 'cost_dimension'): 8.0,
+        }
+        self.assertEqual(result, expected)
+        
+        # Clean up environment variable
+        del os.environ['DIMENSION1_NAME']
+        del os.environ['DIMENSION1_FORMULA']
+
     def test_filter_success_contracts(self):
         """Test filtering already processed contracts."""
         aggregated_data = {
