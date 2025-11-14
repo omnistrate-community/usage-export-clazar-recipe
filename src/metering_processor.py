@@ -572,7 +572,7 @@ def main():
     )
     
     # Run once initially
-    logging.info("Starting metering processor in continuous mode (5-minute interval)")
+    logging.info(f"Starting metering processor in continuous mode ({config.processing_interval_seconds}-second interval)")
 
     # Process next month
     default_start_year, default_start_month = config.validate_start_month()
@@ -591,17 +591,17 @@ def main():
                 logging.warning("Processing cycle completed with errors")
             
             logging.info("=" * 80)
-            logging.info("Waiting 5 minutes until next cycle...")
+            logging.info(f"Waiting {config.processing_interval_seconds} seconds until next cycle...")
             logging.info("=" * 80)
             
-            # Sleep for 5 minutes (300 seconds)
-            time.sleep(300)
+            # Sleep for configured interval
+            time.sleep(config.processing_interval_seconds)
             
         except KeyboardInterrupt:
             logging.info("\nReceived interrupt signal. Shutting down gracefully...")
             sys.exit(0)
         except Exception as e:
             logging.error(f"Unexpected error in main loop: {e}")
-            logging.info("Waiting 5 minutes before retry...")
-            time.sleep(300)
+            logging.info(f"Waiting {config.processing_interval_seconds} seconds before retry...")
+            time.sleep(config.processing_interval_seconds)
 
