@@ -142,7 +142,7 @@ class TestOmnistrateMeteringReader(unittest.TestCase):
         # Mock S3 response
         state_data = {
             'service1:PROD:plan1': {
-                'lastSuccessfulExport': '2025-01-31T23:59:59Z'
+                'last_processed_to': '2025-01-31T23:59:59Z'
             }
         }
         mock_response = {
@@ -209,6 +209,40 @@ class TestOmnistrateMeteringReader(unittest.TestCase):
         self.assertEqual(state, {})
 
     @patch('omnistrate_metering_reader.boto3.client')
+    def test_load_usage_data_state_with_postgres_prod_data(self, mock_boto_client):
+        """Test load_usage_data_state with specific Postgres PROD state data."""
+        mock_s3 = MagicMock()
+        mock_boto_client.return_value = mock_s3
+        
+        # Mock S3 response with the provided JSON structure
+        state_data = {
+            "pg:PROD:pt-HJSv20iWX0": {
+                "last_processed_to": "2025-11-14T03:14:59Z",
+                "last_updated_at": "2025-11-14T03:20:06Z"
+            }
+        }
+        mock_response = {
+            'Body': Mock()
+        }
+        mock_response['Body'].read.return_value = json.dumps(state_data).encode('utf-8')
+        mock_s3.get_object.return_value = mock_response
+        
+        reader = OmnistrateMeteringReader(self.config)
+        state = reader.load_usage_data_state()
+        
+        # Verify the loaded state matches expected structure
+        self.assertEqual(state, state_data)
+        self.assertIn("pg:PROD:pt-HJSv20iWX0", state)
+        self.assertEqual(state["pg:PROD:pt-HJSv20iWX0"]["last_processed_to"], "2025-11-14T03:14:59Z")
+        self.assertEqual(state["pg:PROD:pt-HJSv20iWX0"]["last_updated_at"], "2025-11-14T03:20:06Z")
+        
+        # Verify S3 was called with correct parameters
+        mock_s3.get_object.assert_called_once_with(
+            Bucket='test-bucket',
+            Key='omnistrate-metering/last_success_export.json'
+        )
+
+    @patch('omnistrate_metering_reader.boto3.client')
     def test_get_latest_month_with_complete_usage_data_success(self, mock_boto_client):
         """Test that get_latest_month_with_complete_usage_data returns correct month."""
         mock_s3 = MagicMock()
@@ -217,7 +251,7 @@ class TestOmnistrateMeteringReader(unittest.TestCase):
         # Mock S3 response
         state_data = {
             'test-service:PROD:test-plan': {
-                'lastSuccessfulExport': '2025-01-31T23:59:59Z'
+                'last_processed_to': '2025-01-31T23:59:59Z'
             }
         }
         mock_response = {
@@ -258,7 +292,7 @@ class TestOmnistrateMeteringReader(unittest.TestCase):
         # Mock S3 response with different service
         state_data = {
             'other-service:PROD:plan-456': {
-                'lastSuccessfulExport': '2025-01-31T23:59:59Z'
+                'last_processed_to': '2025-01-31T23:59:59Z'
             }
         }
         mock_response = {
@@ -274,11 +308,11 @@ class TestOmnistrateMeteringReader(unittest.TestCase):
 
     @patch('omnistrate_metering_reader.boto3.client')
     def test_get_latest_month_no_last_export(self, mock_boto_client):
-        """Test that get_latest_month_with_complete_usage_data returns None when no lastSuccessfulExport."""
+        """Test that get_latest_month_with_complete_usage_data returns None when no last_processed_to."""
         mock_s3 = MagicMock()
         mock_boto_client.return_value = mock_s3
         
-        # Mock S3 response without lastSuccessfulExport
+        # Mock S3 response without last_processed_to
         state_data = {
             'test-service:PROD:test-plan': {}
         }
@@ -302,7 +336,7 @@ class TestOmnistrateMeteringReader(unittest.TestCase):
         # Mock S3 response with invalid date format
         state_data = {
             'test-service:PROD:test-plan': {
-                'lastSuccessfulExport': 'invalid-date'
+                'last_processed_to': 'invalid-date'
             }
         }
         mock_response = {
