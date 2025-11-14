@@ -261,8 +261,7 @@ class TestMeteringProcessor(unittest.TestCase):
         )
         
         result = self.processor.send_to_clazar(
-            aggregated_data, start_time, end_time,
-            'Postgres', 'PROD', 'test-plan-123'
+            aggregated_data, start_time, end_time
         )
         
         self.assertTrue(result)
@@ -277,8 +276,7 @@ class TestMeteringProcessor(unittest.TestCase):
         end_time = datetime(2025, 1, 31, 23, 59, 59)
         
         result = self.processor.send_to_clazar(
-            aggregated_data, start_time, end_time,
-            'Postgres', 'PROD', 'test-plan-123'
+            aggregated_data, start_time, end_time
         )
         
         self.assertTrue(result)
@@ -300,8 +298,7 @@ class TestMeteringProcessor(unittest.TestCase):
         )
         
         result = self.processor.send_to_clazar(
-            aggregated_data, start_time, end_time,
-            'Postgres', 'PROD', 'test-plan-123'
+            aggregated_data, start_time, end_time
         )
         
         self.assertFalse(result)
@@ -331,8 +328,7 @@ class TestMeteringProcessor(unittest.TestCase):
         self.mock_clazar_client.authenticate.side_effect = ClazarAPIError('Auth failed')
         
         result = self.processor.send_to_clazar(
-            aggregated_data, start_time, end_time,
-            'Postgres', 'PROD', 'test-plan-123'
+            aggregated_data, start_time, end_time
         )
         
         self.assertFalse(result)
@@ -361,9 +357,7 @@ class TestMeteringProcessor(unittest.TestCase):
             False, [], None, None, []
         )
         
-        result = self.processor.retry_error_contracts(
-            'Postgres', 'PROD', 'test-plan-123', 2025, 1
-        )
+        result = self.processor.retry_error_contracts(2025, 1)
         
         self.assertTrue(result)
         self.mock_state_manager.remove_error_contract.assert_called_once()
@@ -373,9 +367,7 @@ class TestMeteringProcessor(unittest.TestCase):
         """Test retrying when no error contracts exist."""
         self.mock_state_manager.get_error_contracts_for_retry.return_value = []
         
-        result = self.processor.retry_error_contracts(
-            'Postgres', 'PROD', 'test-plan-123', 2025, 1
-        )
+        result = self.processor.retry_error_contracts(2025, 1)
         
         self.assertTrue(result)
         self.mock_clazar_client.send_metering_data.assert_not_called()
@@ -404,9 +396,7 @@ class TestMeteringProcessor(unittest.TestCase):
             True, ['Error message'], 'ERROR_CODE', 'Error occurred', []
         )
         
-        result = self.processor.retry_error_contracts(
-            'Postgres', 'PROD', 'test-plan-123', 2025, 1
-        )
+        result = self.processor.retry_error_contracts(2025, 1)
         
         self.assertFalse(result)
         self.mock_state_manager.mark_contract_month_error.assert_called()
@@ -432,9 +422,7 @@ class TestMeteringProcessor(unittest.TestCase):
             False, [], None, None, []
         )
         
-        result = self.processor.process_month(
-            'Postgres', 'PROD', 'test-plan-123', 2025, 1
-        )
+        result = self.processor.process_month(2025, 1)
         
         self.assertTrue(result)
 
@@ -443,9 +431,7 @@ class TestMeteringProcessor(unittest.TestCase):
         self.mock_state_manager.get_error_contracts_for_retry.return_value = []
         self.mock_metering_reader.list_monthly_subscription_files.return_value = []
         
-        result = self.processor.process_month(
-            'Postgres', 'PROD', 'test-plan-123', 2025, 1
-        )
+        result = self.processor.process_month(2025, 1)
         
         self.assertTrue(result)
 
@@ -456,12 +442,12 @@ class TestMeteringProcessor(unittest.TestCase):
         
         with patch.object(self.processor, 'process_month', return_value=True):
             result = self.processor.process_next_month(
-                'Postgres', 'PROD', 'test-plan-123', (2025, 1)
+                start_month=(2025, 1)
             )
         
         self.assertTrue(result)
         self.mock_state_manager.update_last_processed_month.assert_called_once_with(
-            'Postgres', 'PROD', 'test-plan-123', 2025, 1
+            2025, 1
         )
 
     def test_process_next_month_caught_up(self):
@@ -470,7 +456,7 @@ class TestMeteringProcessor(unittest.TestCase):
         self.mock_metering_reader.get_latest_month_with_complete_usage_data.return_value = (2025, 3)
         
         result = self.processor.process_next_month(
-            'Postgres', 'PROD', 'test-plan-123', (2025, 1)
+            start_month=(2025, 1)
         )
         
         self.assertTrue(result)
@@ -483,7 +469,7 @@ class TestMeteringProcessor(unittest.TestCase):
         
         with patch.object(self.processor, 'process_month', return_value=False):
             result = self.processor.process_next_month(
-                'Postgres', 'PROD', 'test-plan-123', (2025, 1)
+                start_month=(2025, 1)
             )
         
         self.assertFalse(result)
