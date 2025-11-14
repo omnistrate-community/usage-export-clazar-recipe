@@ -120,7 +120,7 @@ This would create a custom dimension called "pod_hours" calculated as half of th
 
 **Note:** The dimension names should match your configured Clazar dimensions. Otherwise, Clazar will not recognize them.
 
-**Controling Price from Omnistrate:**
+**Controlling Price from Omnistrate:**
 
 To make use of the Price Per Unit definition in Omnistrate, a way to configure the formula is to set the dimension price to a fixed value of 0.01 in the Marketplace and then define a formula as follows:
 
