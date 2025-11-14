@@ -104,7 +104,7 @@ This would create a custom dimension called "pod_hours" calculated as half of th
 - `storage_allocated_byte_hours`: Storage usage in byte-hours
 - `cpu_core_hours`: CPU core usage in core-hours
 - `replica_hours`: Replica usage in replica-hours
-- `pricePerUnit` : Price per unit for the dimension defined in Omnistrate
+- `pricePerUnit`: Price per unit for the dimension defined in Omnistrate
 
 **Formula Rules:**
 
