@@ -48,6 +48,7 @@ class Config:
         self.plan_id = os.getenv('PLAN_ID', '')
         self.start_month = os.getenv('START_MONTH', '2025-01')
         self.dry_run = os.getenv('DRY_RUN', 'false').lower() in ('true', '1', 'yes')
+        self.processing_interval_seconds = int(os.getenv('PROCESSING_INTERVAL_SECONDS', '300'))
     
     def _load_healthcheck_config(self):
         """Load healthcheck server configuration."""
@@ -194,6 +195,7 @@ class Config:
         self.logging.info(f"  Start Month: {self.start_month}")
         self.logging.info(f"  Dry Run: {self.dry_run}")
         self.logging.info(f"  Clazar Cloud: {self.clazar_cloud}")
+        self.logging.info(f"  Processing Interval: {self.processing_interval_seconds} seconds")
         
         if self.custom_dimensions:
             self.logging.info(f"  Custom dimensions configured: {list(self.custom_dimensions.keys())}")

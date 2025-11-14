@@ -24,7 +24,7 @@ class TestConfig(unittest.TestCase):
             'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_REGION',
             'AWS_S3_BUCKET_NAME', 'CLAZAR_CLIENT_ID', 'CLAZAR_CLIENT_SECRET',
             'CLAZAR_CLOUD', 'SERVICE_NAME', 'ENVIRONMENT_TYPE', 'PLAN_ID',
-            'START_MONTH', 'DRY_RUN',
+            'START_MONTH', 'DRY_RUN', 'PROCESSING_INTERVAL_SECONDS',
             'DIMENSION1_NAME', 'DIMENSION1_FORMULA',
             'DIMENSION2_NAME', 'DIMENSION2_FORMULA',
             'DIMENSION3_NAME', 'DIMENSION3_FORMULA',
@@ -57,6 +57,7 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(config.plan_id, '')
         self.assertEqual(config.start_month, '2025-01')
         self.assertFalse(config.dry_run)
+        self.assertEqual(config.processing_interval_seconds, 300)
         # Should have the default dimension from setUp
         self.assertEqual(len(config.custom_dimensions), 1)
         self.assertIn('default_dimension', config.custom_dimensions)
@@ -75,6 +76,7 @@ class TestConfig(unittest.TestCase):
         os.environ['PLAN_ID'] = 'plan-xyz'
         os.environ['START_MONTH'] = '2024-06'
         os.environ['DRY_RUN'] = 'true'
+        os.environ['PROCESSING_INTERVAL_SECONDS'] = '600'
         
         config = Config()
         
@@ -90,6 +92,7 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(config.plan_id, 'plan-xyz')
         self.assertEqual(config.start_month, '2024-06')
         self.assertTrue(config.dry_run)
+        self.assertEqual(config.processing_interval_seconds, 600)
 
     def test_dry_run_boolean_parsing(self):
         """Test that DRY_RUN is parsed correctly for various values."""
@@ -321,6 +324,42 @@ class TestConfig(unittest.TestCase):
         config = Config()
         with self.assertRaises(ConfigurationError):
             config.validate_all()
+
+    def test_processing_interval_seconds_default(self):
+        """Test that processing_interval_seconds defaults to 300."""
+        config = Config()
+        self.assertEqual(config.processing_interval_seconds, 300)
+
+    def test_processing_interval_seconds_custom(self):
+        """Test that processing_interval_seconds can be set via environment variable."""
+        test_cases = [
+            ('60', 60),
+            ('120', 120),
+            ('600', 600),
+            ('3600', 3600),
+        ]
+        
+        for value, expected in test_cases:
+            os.environ['PROCESSING_INTERVAL_SECONDS'] = value
+            config = Config()
+            self.assertEqual(config.processing_interval_seconds, expected, 
+                           f"PROCESSING_INTERVAL_SECONDS='{value}' should result in {expected}")
+            del os.environ['PROCESSING_INTERVAL_SECONDS']
+
+    def test_processing_interval_seconds_invalid_raises_error(self):
+        """Test that invalid PROCESSING_INTERVAL_SECONDS values raise an error."""
+        invalid_values = [
+            'invalid',
+            'abc',
+            '12.5',  # Float as string
+            '',
+        ]
+        
+        for invalid_value in invalid_values:
+            os.environ['PROCESSING_INTERVAL_SECONDS'] = invalid_value
+            with self.assertRaises(ValueError):
+                Config()
+            del os.environ['PROCESSING_INTERVAL_SECONDS']
 
     def test_print_summary(self):
         """Test that print_summary runs without errors."""
