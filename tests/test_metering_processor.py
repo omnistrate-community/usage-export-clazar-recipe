@@ -194,8 +194,8 @@ class TestMeteringProcessor(unittest.TestCase):
         result = self.processor.transform_dimensions(aggregated_data)
         
         expected = {
-            ('contract-1', 'custom_dimension'): 3000,
-            ('contract-2', 'custom_dimension'): 2000,
+            ('contract-1', 'custom_dimension'): 3000.0,
+            ('contract-2', 'custom_dimension'): 2000.0,
         }
         self.assertEqual(result, expected)
 
