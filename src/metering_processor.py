@@ -105,7 +105,7 @@ class MeteringProcessor:
             usage_records: List of usage records
             
         Returns:
-            Dictionary with (externalPayerId, dimension) as key and (value, pricePerUnit) as value
+            Dictionary with (externalPayerId, dimension) as key and (count, total) as value
         """
         aggregated_data = defaultdict(lambda: (0, 0))
         
@@ -123,8 +123,10 @@ class MeteringProcessor:
                 continue
             
             key = (external_payer_id, dimension)
-            current_count, current_price = aggregated_data[key]
-            aggregated_data[key] = (current_count + int(value), max(float(pricePerUnit), current_price))
+            current_count, current_total = aggregated_data[key]
+            newCount = current_count + int(value)
+            newTotal = current_total + (float(pricePerUnit) * int(value))
+            aggregated_data[key] = (newCount, newTotal)
         
         self.logger.info(f"Aggregated {len(usage_records)} records into {len(aggregated_data)} entries")
         return dict(aggregated_data)
@@ -161,21 +163,21 @@ class MeteringProcessor:
                             return dim_data[0]
                         return dim_data
                     
-                    def get_price(dim_data):
+                    def get_total(dim_data):
                         if isinstance(dim_data, tuple):
                             return dim_data[1]
                         return 0.0
                     
                     eval_context = {
                         'memory_byte_hours': get_value(dimensions.get('memory_byte_hours', (0, 0))),
-                        "memory_byte_hours_price_per_unit": get_price(dimensions.get("memory_byte_hours", (0, 0))),
+                        "memory_byte_hours_total": get_total(dimensions.get("memory_byte_hours", (0, 0))),
                         'storage_allocated_byte_hours': get_value(dimensions.get('storage_allocated_byte_hours', (0, 0))),
-                        "storage_allocated_byte_hours_price_per_unit": get_price(dimensions.get("storage_allocated_byte_hours", (0, 0))),
+                        "storage_allocated_byte_hours_total": get_total(dimensions.get("storage_allocated_byte_hours", (0, 0))),
                         'cpu_core_hours': get_value(dimensions.get('cpu_core_hours', (0, 0))),
-                        "cpu_core_hours_price_per_unit": get_price(dimensions.get("cpu_core_hours", (0, 0))),
+                        "cpu_core_hours_total": get_total(dimensions.get("cpu_core_hours", (0, 0))),
                         'pricePerUnit': get_value(dimensions.get('pricePerUnit', (0, 0))),
                         'replica_hours': get_value(dimensions.get('replica_hours', (0, 0))),
-                        "replica_hours_price_per_unit": get_price(dimensions.get("replica_hours", (0, 0))),
+                        "replica_hours_total": get_total(dimensions.get("replica_hours", (0, 0))),
                         # Add mathematical functions for safety
                         '__builtins__': {
                             'abs': abs, 'min': min, 'max': max, 'round': round,

@@ -137,9 +137,9 @@ class TestMeteringProcessor(unittest.TestCase):
         result = self.processor.aggregate_usage_data(usage_records)
         
         expected = {
-            ('contract-1', 'cpu_core_hours'): (150, 0.05),
-            ('contract-1', 'memory_byte_hours'): (200, 0.1),
-            ('contract-2', 'cpu_core_hours'): (75, 0.05),
+            ('contract-1', 'cpu_core_hours'): (150, 7.5),
+            ('contract-1', 'memory_byte_hours'): (200, 20.0),
+            ('contract-2', 'cpu_core_hours'): (75, 3.75),
         }
         self.assertEqual(result, expected)
 
@@ -155,8 +155,8 @@ class TestMeteringProcessor(unittest.TestCase):
         result = self.processor.aggregate_usage_data(usage_records)
         
         expected = {
-            ('contract-1', 'cpu_core_hours'): (100, 0.05),
-            ('contract-2', 'cpu_core_hours'): (75, 0.05),
+            ('contract-1', 'cpu_core_hours'): (100, 5),
+            ('contract-2', 'cpu_core_hours'): (75, 3.75),
         }
         self.assertEqual(result, expected)
 
@@ -221,10 +221,10 @@ class TestMeteringProcessor(unittest.TestCase):
         self.assertEqual(result, {})
 
     def test_transform_dimensions_with_price_per_unit_formula(self):
-        """Test transform dimensions with cpu_core_hours * cpu_core_hours_price_per_unit / 0.05 formula."""
+        """Test transform dimensions with cpu_core_hours_total / 0.05 formula."""
         # Create processor with custom dimension using price per unit
         os.environ['DIMENSION1_NAME'] = 'cost_dimension'
-        os.environ['DIMENSION1_FORMULA'] = 'cpu_core_hours * cpu_core_hours_price_per_unit / 0.05'
+        os.environ['DIMENSION1_FORMULA'] = 'cpu_core_hours_total / 0.05'
         config = Config()
         processor = MeteringProcessor(
             config=config,
@@ -234,8 +234,8 @@ class TestMeteringProcessor(unittest.TestCase):
         )
         
         aggregated_data = {
-            ('contract-1', 'cpu_core_hours'): (10000, 50),
-            ('contract-2', 'cpu_core_hours'): (20000, 100),
+            ('contract-1', 'cpu_core_hours'): (10000, 10000 * 50),
+            ('contract-2', 'cpu_core_hours'): (20000, 20000 * 100),
         }
         
         result = processor.transform_dimensions(aggregated_data)
@@ -256,7 +256,7 @@ class TestMeteringProcessor(unittest.TestCase):
         """Test transform dimensions with real-world usage data from Omnistrate."""
         # Create processor with custom dimension using price per unit formula
         os.environ['DIMENSION1_NAME'] = 'cost_dimension'
-        os.environ['DIMENSION1_FORMULA'] = 'cpu_core_hours * cpu_core_hours_price_per_unit / 0.05'
+        os.environ['DIMENSION1_FORMULA'] = 'cpu_core_hours_total / 0.05'
         config = Config()
         processor = MeteringProcessor(
             config=config,
@@ -365,9 +365,10 @@ class TestMeteringProcessor(unittest.TestCase):
         
         # Verify aggregation worked correctly
         expected_aggregated = {
-            ('ae641bd1-edf8-4038-bfed-d2ff556c729e', 'storage_allocated_byte_hours'): (10737418240, 0.05),
-            ('ae641bd1-edf8-4038-bfed-d2ff556c729e', 'memory_byte_hours'): (2147483648, 0.1),
-            ('ae641bd1-edf8-4038-bfed-d2ff556c729e', 'cpu_core_hours'): (2, 0.2),
+            ('ae641bd1-edf8-4038-bfed-d2ff556c729e', 'storage_allocated_byte_hours'): (10737418240, 536870912),
+            ('ae641bd1-edf8-4038-bfed-d2ff556c729e', 'memory_byte_hours'): (2147483648, 214748364.8),
+            ('ae641bd1-edf8-4038-bfed-d2ff556c729e', 'cpu_core_hours'): (2, 0.4),
+            ('ae641bd1-edf8-4038-bfed-d2ff556c729e', 'replica_hours'): (1, 0),
         }
         self.assertEqual(aggregated_data, expected_aggregated)
         
