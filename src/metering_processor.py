@@ -97,7 +97,7 @@ class MeteringProcessor:
         
         return (next_year, next_month)
 
-    def aggregate_usage_data(self, usage_records: List[Dict]) -> Dict[Tuple[str, str], float]:
+    def aggregate_usage_data(self, usage_records: List[Dict]) -> Dict[Tuple[str, str], Tuple[int, float]]:
         """
         Aggregate usage data by externalPayerId (contract_id) and dimension for monthly data.
         
@@ -107,12 +107,13 @@ class MeteringProcessor:
         Returns:
             Dictionary with (externalPayerId, dimension) as key and total usage as value
         """
-        aggregated_data = defaultdict(int)
+        aggregated_data = defaultdict(lambda: (0, 0))
         
         for record in usage_records:
             external_payer_id = record.get('externalPayerId')
             dimension = record.get('dimension')
             value = record.get('value', 0)
+            pricePerUnit = record.get('pricePerUnit', 0)
             
             if not external_payer_id:
                 self.logger.warning(f"Skipping record with missing data: no external payer ID, timestamp {record.get('timestamp')}")
@@ -120,14 +121,18 @@ class MeteringProcessor:
             if not dimension:
                 self.logger.warning(f"Skipping record with missing data: no dimension, timestamp {record.get('timestamp')}, externalPayerId {external_payer_id}")
                 continue
+            if not pricePerUnit or float(pricePerUnit) <= 0:
+                self.logger.warning(f"Skipping record with invalid pricePerUnit: {pricePerUnit}, timestamp {record.get('timestamp')}, externalPayerId {external_payer_id}, dimension {dimension}")
+                continue
             
             key = (external_payer_id, dimension)
-            aggregated_data[key] += int(value)
+            current_value, current_price = aggregated_data[key]
+            aggregated_data[key] = (current_value + int(value), max(float(pricePerUnit), current_price))
         
         self.logger.info(f"Aggregated {len(usage_records)} records into {len(aggregated_data)} entries")
         return dict(aggregated_data)
 
-    def transform_dimensions(self, aggregated_data: Dict[Tuple[str, str], float]) -> Dict[Tuple[str, str], float]:
+    def transform_dimensions(self, aggregated_data: Dict[Tuple[str, str], Tuple[int, float]]) -> Dict[Tuple[str, str], float]:
         """
         Transform dimensions according to custom dimension formulas.
         
@@ -153,12 +158,27 @@ class MeteringProcessor:
             for custom_name, formula in self.custom_dimensions.items():
                 try:
                     # Create a safe evaluation context with available dimensions
+                    # Handle both tuple (value, price) and plain number formats
+                    def get_value(dim_data):
+                        if isinstance(dim_data, tuple):
+                            return dim_data[0]
+                        return dim_data
+                    
+                    def get_price(dim_data):
+                        if isinstance(dim_data, tuple):
+                            return dim_data[1]
+                        return 0.0
+                    
                     eval_context = {
-                        'memory_byte_hours': dimensions.get('memory_byte_hours', 0),
-                        'storage_allocated_byte_hours': dimensions.get('storage_allocated_byte_hours', 0),
-                        'cpu_core_hours': dimensions.get('cpu_core_hours', 0),
-                        'replica_hours': dimensions.get('replica_hours', 0),
-                        "pricePerUnit": dimensions.get("pricePerUnit", 0),
+                        'memory_byte_hours': get_value(dimensions.get('memory_byte_hours', (0, 0))),
+                        "memory_byte_hours_price_per_unit": get_price(dimensions.get("memory_byte_hours", (0, 0))),
+                        'storage_allocated_byte_hours': get_value(dimensions.get('storage_allocated_byte_hours', (0, 0))),
+                        "storage_allocated_byte_hours_price_per_unit": get_price(dimensions.get("storage_allocated_byte_hours", (0, 0))),
+                        'cpu_core_hours': get_value(dimensions.get('cpu_core_hours', (0, 0))),
+                        "cpu_core_hours_price_per_unit": get_price(dimensions.get("cpu_core_hours", (0, 0))),
+                        'pricePerUnit': get_value(dimensions.get('pricePerUnit', (0, 0))),
+                        'replica_hours': get_value(dimensions.get('replica_hours', (0, 0))),
+                        "replica_hours_price_per_unit": get_price(dimensions.get("replica_hours", (0, 0))),
                         # Add mathematical functions for safety
                         '__builtins__': {
                             'abs': abs, 'min': min, 'max': max, 'round': round,
@@ -237,13 +257,15 @@ class MeteringProcessor:
         contract_records = defaultdict(list)
         
         for (external_payer_id, dimension), quantity in aggregated_data.items():
+            # Extract value from tuple if needed (value, price) format
+            value = quantity[0] if isinstance(quantity, tuple) else quantity
             record = {
                 "cloud": self.clazar_cloud,
                 "contract_id": external_payer_id,
                 "dimension": dimension,
                 "start_time": start_time.isoformat() + "Z",
                 "end_time": end_time.isoformat() + "Z",
-                "quantity": str(int(quantity))  # Ensure it's a string of positive integer
+                "quantity": str(int(value))  # Ensure it's a string of positive integer
             }
             contract_records[external_payer_id].append(record)
         
