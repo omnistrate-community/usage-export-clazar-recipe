@@ -10,12 +10,12 @@ x-omnistrate-service-plan:
   ## TODO : Replace <AWS_ACCOUNT_ID> with your account id and uncomment the hostedDeployment section below
   # deployment:
   #   hostedDeployment:
-  #     awsAccountId: "374096234840"
-  #     awsBootstrapRoleAccountArn: arn:aws:iam::374096234840:role/omnistrate-bootstrap-role
+  #     awsAccountId: "<AWS_ACCOUNT_ID"
+  #     awsBootstrapRoleAccountArn: arn:aws:iam::<AWS_ACCOUNT_ID>:role/omnistrate-bootstrap-role
   
 services:
   metering-processor:
-    image: ghcr.io/omnistrate-community/usage-export-clazar-recipe:0.1.1
+    image: ghcr.io/omnistrate-community/usage-export-clazar-recipe:0.1.2
     privileged: true
     platform: linux/amd64
     environment:
