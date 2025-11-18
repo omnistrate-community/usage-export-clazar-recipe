@@ -105,7 +105,7 @@ class MeteringProcessor:
             usage_records: List of usage records
             
         Returns:
-            Dictionary with (externalPayerId, dimension) as key and total usage as value
+            Dictionary with (externalPayerId, dimension) as key and (value, pricePerUnit) as value
         """
         aggregated_data = defaultdict(lambda: (0, 0))
         
@@ -456,14 +456,13 @@ class MeteringProcessor:
         aggregated_data = self.aggregate_usage_data(all_usage_records)
         
         # Transform dimensions according to custom dimension formulas
-        if self.custom_dimensions:
-            aggregated_data = self.transform_dimensions(aggregated_data)
-            if not aggregated_data:
-                self.logger.error(f"No data transformations succeeded for {year}-{month:02d}. Skipping this month.")
-                return False
+        transformed_data = self.transform_dimensions(aggregated_data)
+        if not transformed_data:
+            self.logger.error(f"No data transformations succeeded for {year}-{month:02d}. Skipping this month.")
+            return False
         
         # Filter out already processed contracts
-        filtered_data = self.filter_success_contracts(aggregated_data, year, month)
+        filtered_data = self.filter_success_contracts(transformed_data, year, month)
         
         if not filtered_data:
             self.logger.info(f"All contracts for {year}-{month:02d} have already been processed")

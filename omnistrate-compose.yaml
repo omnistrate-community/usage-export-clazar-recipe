@@ -1,6 +1,6 @@
 version: '3.8'
 
-x-customer-integrations:
+x-internal-integrations:
   logs: 
   metrics: 
 
@@ -8,17 +8,16 @@ x-omnistrate-service-plan:
   name: 'clazar-exporter'
   tenancyType: 'OMNISTRATE_DEDICATED_TENANCY'
   ## TODO : Replace <AWS_ACCOUNT_ID> with your account id and uncomment the hostedDeployment section below
-  # hostedDeployment:
-  #   awsAccountId: "<AWS_ACCOUNT_ID>"
-  #   awsBootstrapRoleAccountArn: arn:aws:iam::<AWS_ACCOUNT_ID>:role/omnistrate-bootstrap-role
+  # deployment:
+  #   hostedDeployment:
+  #     awsAccountId: "374096234840"
+  #     awsBootstrapRoleAccountArn: arn:aws:iam::374096234840:role/omnistrate-bootstrap-role
   
 services:
   metering-processor:
-    image: ghcr.io/omnistrateio/usage-export-clazar-recipe:0.0.1
+    image: ghcr.io/omnistrate-community/usage-export-clazar-recipe:0.1.1
     privileged: true
     platform: linux/amd64
-    ports:
-      - 8080 # health check port
     environment:
       SERVICE_NAME: $var.serviceName
       ENVIRONMENT_TYPE: $var.environmentType
@@ -167,12 +166,13 @@ services:
         required: false
         export: true
       - key: startMonth
-        description: "Start Month for processing (format: YYYY-MM)"
+        description: "Initial Start Month for processing (format: YYYY-MM)"
         name: Start Month
         type: String
         modifiable: true
         required: true
         export: true
+        defaultValue: "2025-01"
       - key: dryRun
         description: Enable dry run mode to test without actual data sending to Clazar.
         name: Dry Run Mode
