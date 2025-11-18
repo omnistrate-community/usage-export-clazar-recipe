@@ -121,13 +121,10 @@ class MeteringProcessor:
             if not dimension:
                 self.logger.warning(f"Skipping record with missing data: no dimension, timestamp {record.get('timestamp')}, externalPayerId {external_payer_id}")
                 continue
-            if not pricePerUnit or float(pricePerUnit) <= 0:
-                self.logger.warning(f"Skipping record with invalid pricePerUnit: {pricePerUnit}, timestamp {record.get('timestamp')}, externalPayerId {external_payer_id}, dimension {dimension}")
-                continue
             
             key = (external_payer_id, dimension)
-            current_value, current_price = aggregated_data[key]
-            aggregated_data[key] = (current_value + int(value), max(float(pricePerUnit), current_price))
+            current_count, current_price = aggregated_data[key]
+            aggregated_data[key] = (current_count + int(value), max(float(pricePerUnit), current_price))
         
         self.logger.info(f"Aggregated {len(usage_records)} records into {len(aggregated_data)} entries")
         return dict(aggregated_data)
@@ -235,30 +232,29 @@ class MeteringProcessor:
         self.logger.info(f"Filtered from {len(aggregated_data)} to {len(filtered_data)} unprocessed contract records")
         return filtered_data
 
-    def send_to_clazar(self, aggregated_data: Dict[Tuple[str, str], float], 
+    def send_to_clazar(self, data:  Dict[Tuple[str, str], float], 
                       start_time: datetime, end_time: datetime) -> bool:
         """
-        Send aggregated usage data to Clazar and track processed contracts.
+        Send usage data to Clazar and track processed contracts.
         Includes retry logic with exponential backoff for failed contracts.
         
         Args:
-            aggregated_data: Aggregated usage data
+            data: usage data
             start_time: Start time for the metering period
             end_time: End time for the metering period
             
         Returns:
             True if successful, False otherwise
         """
-        if not aggregated_data:
+        if not data:
             self.logger.info("No data to send to Clazar")
             return True
         
         # Prepare the payload grouped by contract
         contract_records = defaultdict(list)
         
-        for (external_payer_id, dimension), quantity in aggregated_data.items():
+        for (external_payer_id, dimension), value in data.items():
             # Extract value from tuple if needed (value, price) format
-            value = quantity[0] if isinstance(quantity, tuple) else quantity
             record = {
                 "cloud": self.clazar_cloud,
                 "contract_id": external_payer_id,
