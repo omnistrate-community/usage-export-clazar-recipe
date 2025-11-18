@@ -221,10 +221,10 @@ class TestMeteringProcessor(unittest.TestCase):
         self.assertEqual(result, {})
 
     def test_transform_dimensions_with_price_per_unit_formula(self):
-        """Test transform dimensions with cpu_core_hours_total / 0.05 formula."""
+        """Test transform dimensions with cpu_core_hours_total_price / 0.05 formula."""
         # Create processor with custom dimension using price per unit
         os.environ['DIMENSION1_NAME'] = 'cost_dimension'
-        os.environ['DIMENSION1_FORMULA'] = 'cpu_core_hours_total / 0.05'
+        os.environ['DIMENSION1_FORMULA'] = 'cpu_core_hours_total_price / 0.05'
         config = Config()
         processor = MeteringProcessor(
             config=config,
@@ -256,7 +256,7 @@ class TestMeteringProcessor(unittest.TestCase):
         """Test transform dimensions with real-world usage data from Omnistrate."""
         # Create processor with custom dimension using price per unit formula
         os.environ['DIMENSION1_NAME'] = 'cost_dimension'
-        os.environ['DIMENSION1_FORMULA'] = 'cpu_core_hours_total / 0.05'
+        os.environ['DIMENSION1_FORMULA'] = 'cpu_core_hours_total_price / 0.05'
         config = Config()
         processor = MeteringProcessor(
             config=config,
