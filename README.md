@@ -104,10 +104,10 @@ This would create a custom dimension called "cpu_core_hours" that simply passes 
 - `storage_allocated_byte_hours`: Storage usage in byte-hours
 - `cpu_core_hours`: CPU core usage in core-hours
 - `replica_hours`: Replica usage in replica-hours
-- `memory_byte_hours_price_total`: Unit count * Price per unit for the Memory byte hour dimension
-- `storage_allocated_byte_hours_price_total`:  Unit count * Price per unit for the Storage usage in byte-hours hour dimension
-- `cpu_core_hours_price_total`:  Unit count * Price per unit for the CPU core usage hour dimension
-- `replica_hours_price_total`:  Unit count * Price per unit for the Replica usage hour dimension
+- `memory_byte_hours_total`: Unit count * Price per unit for the Memory byte hour dimension
+- `storage_allocated_byte_hours_total`:  Unit count * Price per unit for the Storage usage in byte-hours hour dimension
+- `cpu_core_hours_total`:  Unit count * Price per unit for the CPU core usage hour dimension
+- `replica_hours_total`:  Unit count * Price per unit for the Replica usage hour dimension
 
 **Formula Rules:**
 
