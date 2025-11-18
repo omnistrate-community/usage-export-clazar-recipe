@@ -221,10 +221,10 @@ class TestMeteringProcessor(unittest.TestCase):
         self.assertEqual(result, {})
 
     def test_transform_dimensions_with_price_per_unit_formula(self):
-        """Test transform dimensions with cpu_core_hours * pricePerUnit / 0.05 formula."""
+        """Test transform dimensions with cpu_core_hours * cpu_core_hours_price_per_unit / 0.05 formula."""
         # Create processor with custom dimension using price per unit
         os.environ['DIMENSION1_NAME'] = 'cost_dimension'
-        os.environ['DIMENSION1_FORMULA'] = 'cpu_core_hours * pricePerUnit / 0.05'
+        os.environ['DIMENSION1_FORMULA'] = 'cpu_core_hours * cpu_core_hours_price_per_unit / 0.05'
         config = Config()
         processor = MeteringProcessor(
             config=config,
@@ -234,10 +234,8 @@ class TestMeteringProcessor(unittest.TestCase):
         )
         
         aggregated_data = {
-            ('contract-1', 'cpu_core_hours'): 10000,
-            ('contract-1', 'pricePerUnit'): 50,
-            ('contract-2', 'cpu_core_hours'): 20000,
-            ('contract-2', 'pricePerUnit'): 100,
+            ('contract-1', 'cpu_core_hours'): (10000, 50),
+            ('contract-2', 'cpu_core_hours'): (20000, 100),
         }
         
         result = processor.transform_dimensions(aggregated_data)
@@ -365,7 +363,7 @@ class TestMeteringProcessor(unittest.TestCase):
         # First aggregate the usage data
         aggregated_data = processor.aggregate_usage_data(usage_records)
         
-        # Verify aggregation worked correctly - pricePerUnit is stored with the value
+        # Verify aggregation worked correctly
         expected_aggregated = {
             ('ae641bd1-edf8-4038-bfed-d2ff556c729e', 'storage_allocated_byte_hours'): (10737418240, 0.05),
             ('ae641bd1-edf8-4038-bfed-d2ff556c729e', 'memory_byte_hours'): (2147483648, 0.1),
@@ -376,7 +374,7 @@ class TestMeteringProcessor(unittest.TestCase):
         # Transform dimensions using the formula
         result = processor.transform_dimensions(aggregated_data)
         
-        # Expected calculation: cpu_core_hours * pricePerUnit / 0.05
+        # Expected calculation: cpu_core_hours * cpu_core_hours_price_per_unit / 0.05
         # = 2 * 0.2 / 0.05 = 0.4 / 0.05 = 8.0
         expected = {
             ('ae641bd1-edf8-4038-bfed-d2ff556c729e', 'cost_dimension'): 8.0,

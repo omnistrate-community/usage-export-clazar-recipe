@@ -104,7 +104,10 @@ This would create a custom dimension called "cpu_core_hours" that simply passes 
 - `storage_allocated_byte_hours`: Storage usage in byte-hours
 - `cpu_core_hours`: CPU core usage in core-hours
 - `replica_hours`: Replica usage in replica-hours
-- `pricePerUnit`: Price per unit for the dimension defined in Omnistrate
+- `memory_byte_hours_price_per_unit`: Price per unit for the memory byte hour dimension
+- `storage_allocated_byte_hours_price_per_unit`:  Price per unit for the storage usage in byte-hours hour dimension
+- `cpu_core_hours_price_per_unit`:  Price per unit for the CPU core usage hour dimension
+- `replica_hours_price_per_unit`:  Price per unit for the replica usage hour dimension
 
 **Formula Rules:**
 
@@ -125,7 +128,7 @@ This would create a custom dimension called "cpu_core_hours" that simply passes 
 To make use of the Price Per Unit definition in Omnistrate, a way to configure the formula is to set the dimension price to a fixed value of 0.01 in the Marketplace and then define a formula as follows:
 
 - `DIMENSION1_NAME`: "marketplace_metric"
-- `DIMENSION1_FORMULA`: "replica_hours * pricePerUnit / 0.01"
+- `DIMENSION1_FORMULA`: "replica_hours * replica_hours_price_per_unit / 0.01"
 
 ## Job Behavior
 
