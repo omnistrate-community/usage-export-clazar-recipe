@@ -1,8 +1,9 @@
 DOCKER_PLATFORM=linux/arm64
 
-SERVICE_NAME="Clazar exporter"
-ENVIRONMENT=DEV
 VENV_DIR=venv
+EXPORTER_ENVIRONMENT=DEV
+EXPORTER_SERVICE_NAME="Clazar exporter"
+EXPORTER_SERVICE_PLAN=clazar-recipe-test
 
 # Load variables from .env if it exists
 ifneq (,$(wildcard .env))
@@ -52,7 +53,7 @@ login:
 release:
 	sed -i '' "s#\$${IMAGE_VERSION}#$$IMAGE_VERSION#g" omnistrate-compose.yaml
 	@echo "Releasing service plan to Omnistrate" 
-	@omnistrate-ctl build -f omnistrate-compose.yaml --product-name ${SERVICE_NAME}  --environment ${ENVIRONMENT} --environment-type ${ENVIRONMENT}  --release-as-preferred
+	@omnistrate-ctl build -f omnistrate-compose.yaml --product-name ${EXPORTER_SERVICE_NAME}  --environment ${EXPORTER_ENVIRONMENT} --environment-type ${EXPORTER_ENVIRONMENT}  --release-as-preferred
 
 .PHONY: docker-build
 docker-build:

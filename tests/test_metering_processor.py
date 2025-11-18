@@ -128,35 +128,35 @@ class TestMeteringProcessor(unittest.TestCase):
     def test_aggregate_usage_data(self):
         """Test aggregating usage data."""
         usage_records = [
-            {'externalPayerId': 'contract-1', 'dimension': 'cpu_core_hours', 'value': 100},
-            {'externalPayerId': 'contract-1', 'dimension': 'cpu_core_hours', 'value': 50},
-            {'externalPayerId': 'contract-1', 'dimension': 'memory_byte_hours', 'value': 200},
-            {'externalPayerId': 'contract-2', 'dimension': 'cpu_core_hours', 'value': 75},
+            {'externalPayerId': 'contract-1', 'dimension': 'cpu_core_hours', 'value': 100, 'pricePerUnit': 0.05},
+            {'externalPayerId': 'contract-1', 'dimension': 'cpu_core_hours', 'value': 50, 'pricePerUnit': 0.05},
+            {'externalPayerId': 'contract-1', 'dimension': 'memory_byte_hours', 'value': 200, 'pricePerUnit': 0.1},
+            {'externalPayerId': 'contract-2', 'dimension': 'cpu_core_hours', 'value': 75, 'pricePerUnit': 0.05},
         ]
         
         result = self.processor.aggregate_usage_data(usage_records)
         
         expected = {
-            ('contract-1', 'cpu_core_hours'): 150,
-            ('contract-1', 'memory_byte_hours'): 200,
-            ('contract-2', 'cpu_core_hours'): 75,
+            ('contract-1', 'cpu_core_hours'): (150, 7.5),
+            ('contract-1', 'memory_byte_hours'): (200, 20.0),
+            ('contract-2', 'cpu_core_hours'): (75, 3.75),
         }
         self.assertEqual(result, expected)
 
     def test_aggregate_usage_data_missing_fields(self):
         """Test aggregating usage data with missing fields."""
         usage_records = [
-            {'externalPayerId': 'contract-1', 'dimension': 'cpu_core_hours', 'value': 100},
-            {'externalPayerId': 'contract-1', 'value': 50},  # Missing dimension
-            {'dimension': 'memory_byte_hours', 'value': 200},  # Missing externalPayerId
-            {'externalPayerId': 'contract-2', 'dimension': 'cpu_core_hours', 'value': 75},
+            {'externalPayerId': 'contract-1', 'dimension': 'cpu_core_hours', 'value': 100, 'pricePerUnit': 0.05},
+            {'externalPayerId': 'contract-1', 'value': 50, 'pricePerUnit': 0.05},  # Missing dimension
+            {'dimension': 'memory_byte_hours', 'value': 200, 'pricePerUnit': 0.1},  # Missing externalPayerId
+            {'externalPayerId': 'contract-2', 'dimension': 'cpu_core_hours', 'value': 75, 'pricePerUnit': 0.05},
         ]
         
         result = self.processor.aggregate_usage_data(usage_records)
         
         expected = {
-            ('contract-1', 'cpu_core_hours'): 100,
-            ('contract-2', 'cpu_core_hours'): 75,
+            ('contract-1', 'cpu_core_hours'): (100, 5),
+            ('contract-2', 'cpu_core_hours'): (75, 3.75),
         }
         self.assertEqual(result, expected)
 
@@ -185,10 +185,10 @@ class TestMeteringProcessor(unittest.TestCase):
     def test_transform_dimensions_with_custom_dimensions(self):
         """Test transform dimensions with custom dimension formulas."""
         aggregated_data = {
-            ('contract-1', 'memory_byte_hours'): 1000,
-            ('contract-1', 'storage_allocated_byte_hours'): 2000,
-            ('contract-2', 'memory_byte_hours'): 500,
-            ('contract-2', 'storage_allocated_byte_hours'): 1500,
+            ('contract-1', 'memory_byte_hours'): (1000, 0),
+            ('contract-1', 'storage_allocated_byte_hours'): (2000, 0),
+            ('contract-2', 'memory_byte_hours'): (500, 0),
+            ('contract-2', 'storage_allocated_byte_hours'): (1500, 0),
         }
         
         result = self.processor.transform_dimensions(aggregated_data)
@@ -221,10 +221,10 @@ class TestMeteringProcessor(unittest.TestCase):
         self.assertEqual(result, {})
 
     def test_transform_dimensions_with_price_per_unit_formula(self):
-        """Test transform dimensions with cpu_core_hours * pricePerUnit / 0.05 formula."""
+        """Test transform dimensions with cpu_core_hours_total / 0.05 formula."""
         # Create processor with custom dimension using price per unit
         os.environ['DIMENSION1_NAME'] = 'cost_dimension'
-        os.environ['DIMENSION1_FORMULA'] = 'cpu_core_hours * pricePerUnit / 0.05'
+        os.environ['DIMENSION1_FORMULA'] = 'cpu_core_hours_total / 0.05'
         config = Config()
         processor = MeteringProcessor(
             config=config,
@@ -234,10 +234,8 @@ class TestMeteringProcessor(unittest.TestCase):
         )
         
         aggregated_data = {
-            ('contract-1', 'cpu_core_hours'): 10000,
-            ('contract-1', 'pricePerUnit'): 50,
-            ('contract-2', 'cpu_core_hours'): 20000,
-            ('contract-2', 'pricePerUnit'): 100,
+            ('contract-1', 'cpu_core_hours'): (10000, 10000 * 50),
+            ('contract-2', 'cpu_core_hours'): (20000, 20000 * 100),
         }
         
         result = processor.transform_dimensions(aggregated_data)
@@ -258,7 +256,7 @@ class TestMeteringProcessor(unittest.TestCase):
         """Test transform dimensions with real-world usage data from Omnistrate."""
         # Create processor with custom dimension using price per unit formula
         os.environ['DIMENSION1_NAME'] = 'cost_dimension'
-        os.environ['DIMENSION1_FORMULA'] = 'cpu_core_hours * pricePerUnit / 0.05'
+        os.environ['DIMENSION1_FORMULA'] = 'cpu_core_hours_total / 0.05'
         config = Config()
         processor = MeteringProcessor(
             config=config,
@@ -365,23 +363,19 @@ class TestMeteringProcessor(unittest.TestCase):
         # First aggregate the usage data
         aggregated_data = processor.aggregate_usage_data(usage_records)
         
-        # Verify aggregation worked correctly - pricePerUnit is not aggregated by dimension
+        # Verify aggregation worked correctly
         expected_aggregated = {
-            ('ae641bd1-edf8-4038-bfed-d2ff556c729e', 'storage_allocated_byte_hours'): 10737418240,
-            ('ae641bd1-edf8-4038-bfed-d2ff556c729e', 'memory_byte_hours'): 2147483648,
-            ('ae641bd1-edf8-4038-bfed-d2ff556c729e', 'cpu_core_hours'): 2,
-            ('ae641bd1-edf8-4038-bfed-d2ff556c729e', 'replica_hours'): 1,
+            ('ae641bd1-edf8-4038-bfed-d2ff556c729e', 'storage_allocated_byte_hours'): (10737418240, 536870912),
+            ('ae641bd1-edf8-4038-bfed-d2ff556c729e', 'memory_byte_hours'): (2147483648, 214748364.8),
+            ('ae641bd1-edf8-4038-bfed-d2ff556c729e', 'cpu_core_hours'): (2, 0.4),
+            ('ae641bd1-edf8-4038-bfed-d2ff556c729e', 'replica_hours'): (1, 0),
         }
         self.assertEqual(aggregated_data, expected_aggregated)
-        
-        # For the transform to work, we need to add pricePerUnit as a dimension
-        # This simulates the case where pricePerUnit is also exported as a dimension
-        aggregated_data[('ae641bd1-edf8-4038-bfed-d2ff556c729e', 'pricePerUnit')] = 0.2
         
         # Transform dimensions using the formula
         result = processor.transform_dimensions(aggregated_data)
         
-        # Expected calculation: cpu_core_hours * pricePerUnit / 0.05
+        # Expected calculation: cpu_core_hours * cpu_core_hours_price_per_unit / 0.05
         # = 2 * 0.2 / 0.05 = 0.4 / 0.05 = 8.0
         expected = {
             ('ae641bd1-edf8-4038-bfed-d2ff556c729e', 'cost_dimension'): 8.0,
@@ -581,7 +575,7 @@ class TestMeteringProcessor(unittest.TestCase):
         ]
         
         self.mock_metering_reader.read_s3_json_file.return_value = [
-            {'externalPayerId': 'contract-1', 'dimension': 'cpu_core_hours', 'value': 100}
+            {'externalPayerId': 'contract-1', 'dimension': 'cpu_core_hours', 'value': 100, 'pricePerUnit': 0.05}
         ]
         
         # Add read_s3_json_file method to processor to delegate to metering_reader
