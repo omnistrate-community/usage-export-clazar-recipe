@@ -12,7 +12,7 @@ In Omnistrate UI, navigate to *"FinOps Center > Tenant Pricing -> Modify Tenant 
 
 ### AWS Permissions
 
-The exporter will use AWS Credentials (Key and Secret) to access the metering data in S3. You will need to create a AWS User and associate the following policy to it:
+The exporter will use AWS Credentials (Key and Secret) to access the metering data in S3. You will need to create an AWS User and associate the following policy to it:
 
 ```json
 {
