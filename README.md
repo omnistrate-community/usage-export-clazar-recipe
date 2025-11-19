@@ -49,7 +49,7 @@ The exporter will use AWS Credentials (Key and Secret) to access the metering da
 }
 ```
 
-If the AWS User is created in a different AWS Account that the S3 Bucket, the bucket the policy has to be updated to allow Omnistrate to export the data and also allow the AWS User created for the exporter read the data.
+If the AWS User is created in a different AWS Account than the S3 Bucket, the bucket policy has to be updated to allow Omnistrate to export the data and also allow the AWS User created for the exporter to read the data.
 
 ```json
 {
