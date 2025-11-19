@@ -72,6 +72,7 @@ If the AWS User is created in a different AWS Account than the S3 Bucket, the bu
                 "AWS": "arn:aws:iam::[AWS_USER_ACCOUNT_ID]:root"  
             },
             "Action": [
+                "s3:ListBucket"
                 "s3:PutObject",
                 "s3:GetObject"
             ],
