@@ -128,7 +128,7 @@ This would create a custom dimension called "cpu_core_hours" that simply passes 
 To make use of the Price Per Unit definition in Omnistrate, a way to configure the formula is to set the dimension price to a fixed value of 0.01 in the Marketplace and then define a formula as follows:
 
 - `DIMENSION1_NAME`: "marketplace_metric"
-- `DIMENSION1_FORMULA`: "replica_hours * replica_hours_price_per_unit / 0.01"
+- `DIMENSION1_FORMULA`: "replica_hours_total_price / 0.01"
 
 ## Job Behavior
 
