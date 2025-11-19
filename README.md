@@ -12,7 +12,7 @@ In Omnistrate UI, navigate to *"FinOps Center > Tenant Pricing -> Modify Tenant 
 
 ### AWS Permissions
 
-Your AWS credentials need the following S3 permissions:
+The exporter will use AWS Credentials (Key and Secret) to access the metering data in S3. You will need to create a AWS User and associate the following policy to it:
 
 ```json
 {
@@ -24,7 +24,7 @@ Your AWS credentials need the following S3 permissions:
                 "s3:ListBucket"
             ],
             "Resource": [
-                "arn:aws:s3:::your-bucket-name"
+                "arn:aws:s3:::[bucketName]"
             ]
         }, 
         {
@@ -33,7 +33,7 @@ Your AWS credentials need the following S3 permissions:
                 "s3:GetObject"
             ],
             "Resource": [
-                "arn:aws:s3:::your-bucket-name/*"
+                "arn:aws:s3:::[bucketName]/*"
             ]
         },
         {
@@ -42,8 +42,40 @@ Your AWS credentials need the following S3 permissions:
                 "s3:PutObject"
             ],
             "Resource": [
-                "arn:aws:s3:::your-bucket-name/clazar/*"
+                "arn:aws:s3:::[bucketName]/clazar/*"
             ]
+        }
+    ]
+}
+```
+
+If the AWS User is created in a different AWS Account that the S3 Bucket, the bucket the policy has to be updated to allow Omnistrate to export the data and also allow the AWS User created for the exporter read the data.
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Principal": {
+                "AWS": "arn:aws:iam::498789612402:root"  
+            },
+            "Action": [
+                "s3:PutObject",
+                "s3:GetObject"
+            ],
+            "Resource": "arn:aws:s3:::[bucketName]/*"
+        },
+        {
+            "Effect": "Allow",
+            "Principal": {
+                "AWS": "arn:aws:iam::[AWS_USER_ACCOUNT_ID]:root"  
+            },
+            "Action": [
+                "s3:PutObject",
+                "s3:GetObject"
+            ],
+            "Resource": "arn:aws:s3:::[bucketName]/*"
         }
     ]
 }
