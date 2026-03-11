@@ -601,6 +601,46 @@ class TestMeteringProcessor(unittest.TestCase):
         
         self.assertTrue(result)
 
+    def test_process_month_no_billable_records(self):
+        """Test processing a month where all records lack externalPayerId.
+        
+        Should return True (advance past this month) rather than False (stuck forever).
+        """
+        self.mock_state_manager.get_error_contracts_for_retry.return_value = []
+        self.mock_metering_reader.list_monthly_subscription_files.return_value = ['file1.json']
+        
+        # Records with no externalPayerId — aggregate_usage_data will skip all of them
+        records_missing_payer_id = [
+            {'dimension': 'cpu_core_hours', 'value': 10, 'pricePerUnit': 0.05, 'timestamp': '2025-11-12T02:45:00Z'},
+            {'dimension': 'replica_hours', 'value': 5, 'pricePerUnit': 0.10, 'timestamp': '2025-11-12T03:04:54Z'},
+        ]
+        self.mock_metering_reader.read_s3_json_file.return_value = records_missing_payer_id
+        
+        result = self.processor.process_month(2025, 11)
+        
+        # Should succeed so the exporter advances past this month
+        self.assertTrue(result)
+        # Should NOT attempt to send anything to Clazar
+        self.mock_clazar_client.send_metering_data.assert_not_called()
+
+    def test_process_month_no_billable_records_advances_month(self):
+        """Test that a month with no billable records gets marked as processed."""
+        self.mock_state_manager.get_last_processed_month.return_value = (2025, 10)
+        self.mock_metering_reader.get_latest_month_with_complete_usage_data.return_value = (2025, 12)
+        self.mock_state_manager.get_error_contracts_for_retry.return_value = []
+        self.mock_metering_reader.list_monthly_subscription_files.return_value = ['file1.json']
+        
+        # All records missing externalPayerId
+        self.mock_metering_reader.read_s3_json_file.return_value = [
+            {'dimension': 'cpu_core_hours', 'value': 10, 'timestamp': '2025-11-12T02:45:00Z'},
+        ]
+        
+        result = self.processor.process_next_month(start_month=(2025, 1))
+        
+        self.assertTrue(result)
+        # Month should be advanced
+        self.mock_state_manager.update_last_processed_month.assert_called_once_with(2025, 11)
+
     def test_process_next_month_success(self):
         """Test processing next month successfully."""
         self.mock_state_manager.get_last_processed_month.return_value = None

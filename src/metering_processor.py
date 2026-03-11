@@ -453,6 +453,17 @@ class MeteringProcessor:
         # Aggregate the data
         aggregated_data = self.aggregate_usage_data(all_usage_records)
         
+        if not aggregated_data:
+            # All records were filtered out (e.g., missing externalPayerId).
+            # The data for this month is final — treat as success so we advance
+            # rather than getting stuck retrying forever.
+            self.logger.warning(
+                f"No billable records for {year}-{month:02d}: all {len(all_usage_records)} records were "
+                f"skipped (likely missing externalPayerId). Ensure the External Payer ID is configured "
+                f"in Omnistrate FinOps Center. Advancing past this month."
+            )
+            return True
+        
         # Transform dimensions according to custom dimension formulas
         transformed_data = self.transform_dimensions(aggregated_data)
         if not transformed_data:
