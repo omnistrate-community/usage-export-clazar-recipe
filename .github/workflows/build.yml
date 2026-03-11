@@ -21,7 +21,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
             
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -58,7 +58,7 @@ jobs:
       group: Bump-Version-'${{ github.workflow }}'
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Bump version and push tag
         id: tag_version
