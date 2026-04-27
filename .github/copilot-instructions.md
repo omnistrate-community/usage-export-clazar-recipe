@@ -180,3 +180,46 @@ make release
 - **Quantities must be non-negative integer strings.** Clazar expects `"quantity": "720"`, not `720` or `"720.5"`.
 - **Dimension names must match Clazar configuration.** Mismatched names cause warnings in the API response.
 - **Subscription cancellation is not handled.** Usage data for cancelled subscriptions must be manually uploaded to Clazar before the marketplace grace period expires.
+
+<!-- security-checklist-managed -->
+
+## Security Checklist
+
+This service moves usage / billing data between Omnistrate and a downstream system. The data is sensitive (customer identifiers, consumption, billable amounts), and the credentials involved often have broad scope. Apply this checklist to every change.
+
+### Authentication & Credentials
+- Source and destination credentials must come from a secret store (AWS Secrets Manager, GitHub Actions secrets, Kubernetes Secrets), never from committed files or container images.
+- Use short-lived credentials (IAM roles, OIDC) where supported. Do not bake long-lived access keys into images.
+- Verify TLS certificates on every outbound connection. Never disable cert verification "to make it work".
+
+### Tenant & Data Scoping
+- Every record processed must carry a tenant / customer identifier. Logs and metrics must reference these IDs, not the contents.
+- Do not co-mingle data from multiple tenants in a single output file unless the downstream contract requires it; if it does, ensure access controls on the destination enforce isolation.
+- When backfilling or re-running, scope the run to a specific time range and tenant set; never default to "all data, all tenants".
+
+### Input Validation
+- Validate the schema of source records before forwarding. Reject records with missing required fields rather than emitting malformed data downstream.
+- Cap row counts and payload sizes per run to bound blast radius from a corrupted source.
+- Treat downstream API responses as untrusted: validate before storing or acting on them.
+- If source or destination URLs/hosts are configurable, validate them against an allowlist and block private / loopback / link-local (`169.254/16` cloud metadata) addresses to prevent SSRF.
+
+### Secrets & PII Handling
+- Do not log secret values, signed URLs, or full record bodies. Log counts, IDs, and outcome codes.
+- PII in records (emails, names, addresses) must be redacted in any log line, metric label, or error report.
+- Do not include secrets or PII in alerting messages sent to chat channels.
+
+### Idempotency & Replay Safety
+- Every export run must be idempotent on the destination side (use a deterministic record key) so that retries and partial-failure replays do not double-bill.
+- Record run metadata (start/end timestamps, record counts, checksums) in a durable store for audit.
+
+### Logging & Audit
+- Use structured logs with the run ID, tenant ID, source range, and outcome. Avoid unstructured `print` in production paths.
+- Failures must surface enough context for an operator to remediate, without leaking secrets or full payloads.
+
+### Dependencies & Supply Chain
+- Run `pip-audit` / `npm audit` / `govulncheck` on dependency changes.
+- Pin direct dependency versions and base image digests.
+- Pin GitHub Actions to commit SHAs.
+
+### What to do when unsure
+- If a change touches credential scope, data scoping, retry/idempotency, or destination contracts, call it out explicitly in the PR description and request a security review.
