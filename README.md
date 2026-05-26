@@ -10,6 +10,8 @@ To obtain the contract IDs of your buyers, you can use the included `clazar_cont
 
 In Omnistrate UI, navigate to *"FinOps Center > Tenant Pricing -> Modify Tenant Pricing"* and set the `External Payer ID` field to the corresponding Clazar contract ID. When set, this value will be included in the exported metering data under the `externalPayerId` field. This allows the exporter to correctly associate usage data with the appropriate Clazar contracts.
 
+Omnistrate usage export files also include placement metadata such as `hostClusterId`, `cloudProvider`, `region`, and `customNetworkId`. This recipe uses `externalPayerId`, `dimension`, `value`, and `pricePerUnit` for Clazar reporting; the placement fields remain available in S3 for reconciliation and analytics.
+
 ### AWS Permissions
 
 Your AWS credentials need the following S3 permissions:

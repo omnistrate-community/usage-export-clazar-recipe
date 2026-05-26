@@ -26,21 +26,37 @@ Each record within a subscription file contains:
 
 ```json
 {
+  "timestamp": "2025-01-15T12:00:00Z",
+  "subscriptionId": "sub-I8QCrIrOIE",
   "externalPayerId": "ae641bd1-edf8-4038-bfed-d2ff556c729e",
+  "hostClusterId": "hc-pelsk80ph",
+  "cloudProvider": "aws",
+  "region": "us-east-2",
+  "customNetworkId": "network-custom123",
+  "instanceId": "instance-8qtgw2dx7",
+  "podName": "postgres-0",
   "dimension": "cpu_core_hours",
   "value": 24,
-  "pricePerUnit": 0.05,
-  "timestamp": "2025-01-15T12:00:00Z"
+  "pricePerUnit": 0.05
 }
 ```
 
 | Field | Description |
 |---|---|
+| `timestamp` | When this usage was recorded |
+| `subscriptionId` | The Omnistrate subscription that produced this usage |
 | `externalPayerId` | The Clazar contract ID, configured in Omnistrate's FinOps Center |
+| `hostClusterId` | The deployment host cluster ID for the instance |
+| `cloudProvider` | The cloud provider for the host cluster |
+| `region` | The cloud region for the host cluster |
+| `customNetworkId` | The custom network ID for the host cluster, when present |
+| `instanceId` | The Omnistrate instance that produced this usage |
+| `podName` | The pod that produced this usage, when the metric is pod-scoped |
 | `dimension` | The type of resource being metered (e.g., `cpu_core_hours`, `memory_byte_hours`, `replica_hours`, `storage_allocated_byte_hours`) |
 | `value` | The quantity consumed in this record |
 | `pricePerUnit` | The unit price configured in Omnistrate for this dimension |
-| `timestamp` | When this usage was recorded |
+
+The Clazar exporter aggregates only `externalPayerId`, `dimension`, `value`, and `pricePerUnit`. The placement fields are preserved in the Omnistrate export for analysis and reconciliation but are not sent to Clazar by this recipe.
 
 ### Export Completion Signal
 
